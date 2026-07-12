@@ -21,7 +21,7 @@ function Gate({ children }: { children: React.ReactNode }) {
     if (status === "loading") return
     const current = segments[0] ?? ""
     const onboardingRoutes = ["welcome", "create-backup", "create-verify", "import-wallet", "set-pin"]
-    const mainRoutes = ["home", "receive", "settings"]
+    const mainRoutes = ["home", "receive", "send", "settings"]
 
     if (status === "no-wallet" && !onboardingRoutes.includes(current)) {
       router.replace("/welcome")

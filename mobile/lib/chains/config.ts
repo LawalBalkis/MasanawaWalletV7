@@ -17,6 +17,10 @@ export interface ChainConfig {
   coingeckoId: string
   /** Accent color for UI. */
   color: string
+  /** EIP-155 chain id (EVM chains only). */
+  evmChainId?: number
+  /** Block explorer tx URL prefix (tx hash is appended). */
+  explorerTx: string
 }
 
 export const CHAINS: ChainConfig[] = [
@@ -29,6 +33,8 @@ export const CHAINS: ChainConfig[] = [
     rpcUrl: "https://ethereum-rpc.publicnode.com",
     coingeckoId: "ethereum",
     color: "#8A92B2",
+    evmChainId: 1,
+    explorerTx: "https://etherscan.io/tx/",
   },
   {
     id: "base",
@@ -39,6 +45,8 @@ export const CHAINS: ChainConfig[] = [
     rpcUrl: "https://base-rpc.publicnode.com",
     coingeckoId: "ethereum",
     color: "#2151F5",
+    evmChainId: 8453,
+    explorerTx: "https://basescan.org/tx/",
   },
   {
     id: "arbitrum",
@@ -49,6 +57,8 @@ export const CHAINS: ChainConfig[] = [
     rpcUrl: "https://arbitrum-one-rpc.publicnode.com",
     coingeckoId: "ethereum",
     color: "#2D374B",
+    evmChainId: 42161,
+    explorerTx: "https://arbiscan.io/tx/",
   },
   {
     id: "optimism",
@@ -59,6 +69,8 @@ export const CHAINS: ChainConfig[] = [
     rpcUrl: "https://optimism-rpc.publicnode.com",
     coingeckoId: "ethereum",
     color: "#FF0420",
+    evmChainId: 10,
+    explorerTx: "https://optimistic.etherscan.io/tx/",
   },
   {
     id: "bsc",
@@ -69,6 +81,8 @@ export const CHAINS: ChainConfig[] = [
     rpcUrl: "https://bsc-rpc.publicnode.com",
     coingeckoId: "binancecoin",
     color: "#F0B90B",
+    evmChainId: 56,
+    explorerTx: "https://bscscan.com/tx/",
   },
   {
     id: "solana",
@@ -79,6 +93,7 @@ export const CHAINS: ChainConfig[] = [
     rpcUrl: "https://api.mainnet-beta.solana.com",
     coingeckoId: "solana",
     color: "#14F195",
+    explorerTx: "https://solscan.io/tx/",
   },
   {
     id: "tron",
@@ -89,6 +104,7 @@ export const CHAINS: ChainConfig[] = [
     rpcUrl: "https://api.trongrid.io",
     coingeckoId: "tron",
     color: "#EB0029",
+    explorerTx: "https://tronscan.org/#/transaction/",
   },
 ]
 

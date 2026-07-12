@@ -75,13 +75,24 @@ export default function Home() {
             <Pressable
               onPress={() => {
                 touch()
+                router.push("/send")
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Send crypto"
+              style={({ pressed }) => [styles.action, pressed && styles.actionPressed]}
+            >
+              <Text style={styles.actionText}>Send</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => {
+                touch()
                 router.push("/receive")
               }}
               accessibilityRole="button"
               accessibilityLabel="Receive crypto"
-              style={({ pressed }) => [styles.action, pressed && styles.actionPressed]}
+              style={({ pressed }) => [styles.action, styles.actionSecondary, pressed && styles.actionPressed]}
             >
-              <Text style={styles.actionText}>Receive</Text>
+              <Text style={[styles.actionText, styles.actionTextSecondary]}>Receive</Text>
             </Pressable>
             <Pressable
               onPress={() => {
