@@ -184,11 +184,14 @@ export interface WalletSettings {
   biometricsEnabled: boolean
   /** Auto-lock timeout in seconds. */
   autoLockSeconds: number
+  /** Fiat display currency (lowercase ISO code, e.g. "usd", "eur"). */
+  currency: string
 }
 
 const DEFAULT_SETTINGS: WalletSettings = {
   biometricsEnabled: false,
   autoLockSeconds: 60,
+  currency: "usd",
 }
 
 export async function getSettings(): Promise<WalletSettings> {

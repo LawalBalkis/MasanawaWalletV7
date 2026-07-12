@@ -39,7 +39,7 @@ interface WalletContextValue {
   touch: () => void
 }
 
-const DEFAULT_SETTINGS: WalletSettings = { biometricsEnabled: false, autoLockSeconds: 60 }
+const DEFAULT_SETTINGS: WalletSettings = { biometricsEnabled: false, autoLockSeconds: 60, currency: "usd" }
 
 const WalletContext = createContext<WalletContextValue | null>(null)
 

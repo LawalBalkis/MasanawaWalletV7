@@ -49,6 +49,8 @@ export interface Eip1559Fields {
   to: string
   /** Value in wei. */
   value: bigint
+  /** Optional 0x-prefixed calldata (e.g. an ERC-20 transfer). */
+  data?: string
 }
 
 const TX_TYPE = new Uint8Array([0x02])
@@ -62,7 +64,7 @@ function unsignedFieldList(tx: Eip1559Fields): RlpInput[] {
     bigintToMinimalBytes(tx.gasLimit),
     hexToBytes(tx.to),
     bigintToMinimalBytes(tx.value),
-    new Uint8Array(0), // data
+    tx.data ? hexToBytes(tx.data) : new Uint8Array(0), // data
     [], // accessList
   ]
 }
