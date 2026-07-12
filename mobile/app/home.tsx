@@ -4,31 +4,56 @@ import { useRouter } from "expo-router"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import useSWR from "swr"
 import { useWallet } from "../lib/wallet-context"
-import { fetchAllBalances, type ChainBalance } from "../lib/chains/balances"
+import { fetchPortfolio } from "../lib/chains/portfolio"
+import type { ChainBalance } from "../lib/chains/balances"
+import type { TokenBalance } from "../lib/chains/token-balances"
 import { CHAINS } from "../lib/chains/config"
+import { findToken } from "../lib/chains/tokens"
+import { formatFiat } from "../lib/format"
 import { colors, radius, spacing, type } from "../lib/theme"
 
-function formatUsd(value: number): string {
-  return value.toLocaleString("en-US", { style: "currency", currency: "USD" })
-}
-
-function ChainRow({ balance }: { balance: ChainBalance }) {
-  const chain = CHAINS.find((c) => c.id === balance.chainId)
-  if (!chain) return null
+function AssetRow({
+  name,
+  symbol,
+  color,
+  formatted,
+  fiat,
+  currency,
+  error,
+  badge,
+}: {
+  name: string
+  symbol: string
+  color: string
+  formatted: string
+  fiat: number | null
+  currency: string
+  error?: string
+  badge?: string
+}) {
   return (
     <View style={styles.row}>
-      <View style={[styles.chainDot, { backgroundColor: chain.color }]} />
+      <View style={[styles.chainDot, { backgroundColor: color }]}>
+        <Text style={styles.dotGlyph}>{symbol.slice(0, 1)}</Text>
+      </View>
       <View style={styles.rowBody}>
-        <Text style={type.body}>{chain.name}</Text>
-        {balance.error ? (
+        <View style={styles.rowNameLine}>
+          <Text style={type.body}>{name}</Text>
+          {badge ? (
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>{badge}</Text>
+            </View>
+          ) : null}
+        </View>
+        {error ? (
           <Text style={styles.rowError}>Unavailable</Text>
         ) : (
           <Text style={type.caption}>
-            {balance.formatted} {chain.symbol}
+            {formatted} {symbol}
           </Text>
         )}
       </View>
-      <Text style={[type.body, styles.rowUsd]}>{balance.usd != null ? formatUsd(balance.usd) : "--"}</Text>
+      <Text style={[type.body, styles.rowUsd]}>{fiat != null ? formatFiat(fiat, currency) : "--"}</Text>
     </View>
   )
 }
@@ -36,11 +61,12 @@ function ChainRow({ balance }: { balance: ChainBalance }) {
 export default function Home() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
-  const { addresses, lock, touch } = useWallet()
+  const { addresses, settings, lock, touch } = useWallet()
+  const currency = settings.currency
 
   const { data, isLoading, isValidating, mutate } = useSWR(
-    addresses ? ["balances", addresses.evm, addresses.solana, addresses.tron] : null,
-    () => fetchAllBalances(addresses!),
+    addresses ? ["portfolio", addresses.evm, addresses.solana, addresses.tron, currency] : null,
+    () => fetchPortfolio(addresses!, currency),
     { refreshInterval: 60_000, revalidateOnFocus: false },
   )
 
@@ -49,7 +75,12 @@ export default function Home() {
     mutate()
   }, [mutate, touch])
 
-  const total = data?.reduce((sum, b) => sum + (b.usd ?? 0), 0) ?? null
+  const total = data?.total ?? null
+
+  // Only show token rows that either hold a balance or failed to load.
+  const visibleTokens = (data?.tokens ?? []).filter(
+    (t: TokenBalance) => t.error || (t.raw !== "0" && t.raw.length > 0),
+  )
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
@@ -70,7 +101,9 @@ export default function Home() {
       >
         <View style={styles.totalCard}>
           <Text style={type.caption}>Total balance</Text>
-          <Text style={styles.totalValue}>{total != null ? formatUsd(total) : isLoading ? "..." : "--"}</Text>
+          <Text style={styles.totalValue}>
+            {total != null ? formatFiat(total, currency) : isLoading ? "..." : "--"}
+          </Text>
           <View style={styles.actionsRow}>
             <Pressable
               onPress={() => {
@@ -97,6 +130,17 @@ export default function Home() {
             <Pressable
               onPress={() => {
                 touch()
+                router.push("/activity")
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="View activity"
+              style={({ pressed }) => [styles.action, styles.actionSecondary, pressed && styles.actionPressed]}
+            >
+              <Text style={[styles.actionText, styles.actionTextSecondary]}>Activity</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => {
+                touch()
                 router.push("/settings")
               }}
               accessibilityRole="button"
@@ -113,7 +157,60 @@ export default function Home() {
           {isLoading && !data ? (
             <Text style={[type.caption, styles.loading]}>Loading balances...</Text>
           ) : (
-            data?.map((b) => <ChainRow key={b.chainId} balance={b} />)
+            <>
+              {data?.native.map((b: ChainBalance) => {
+                const chain = CHAINS.find((c) => c.id === b.chainId)
+                if (!chain) return null
+                return (
+                  <Pressable
+                    key={b.chainId}
+                    onPress={() => {
+                      touch()
+                      router.push(`/asset/${b.chainId}`)
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel={`View ${chain.name}`}
+                  >
+                    <AssetRow
+                      name={chain.name}
+                      symbol={chain.symbol}
+                      color={chain.color}
+                      formatted={b.formatted}
+                      fiat={b.usd}
+                      currency={currency}
+                      error={b.error}
+                    />
+                  </Pressable>
+                )
+              })}
+              {visibleTokens.map((t: TokenBalance) => {
+                const token = findToken(t.tokenId)
+                const chain = CHAINS.find((c) => c.id === t.chainId)
+                if (!token || !chain) return null
+                return (
+                  <Pressable
+                    key={t.tokenId}
+                    onPress={() => {
+                      touch()
+                      router.push(`/asset/${t.tokenId}`)
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel={`View ${token.name} on ${chain.name}`}
+                  >
+                    <AssetRow
+                      name={token.name}
+                      symbol={token.symbol}
+                      color={token.color}
+                      formatted={t.formatted}
+                      fiat={t.usd}
+                      currency={currency}
+                      error={t.error}
+                      badge={chain.name}
+                    />
+                  </Pressable>
+                )
+              })}
+            </>
           )}
         </View>
       </ScrollView>
@@ -181,7 +278,7 @@ const styles = StyleSheet.create({
   },
   actionText: {
     color: colors.primaryForeground,
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: "600",
   },
   actionTextSecondary: {
@@ -209,10 +306,35 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: radius.full,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dotGlyph: {
+    color: colors.primaryForeground,
+    fontSize: 14,
+    fontWeight: "700",
   },
   rowBody: {
     flex: 1,
     gap: 2,
+  },
+  rowNameLine: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  badge: {
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: radius.sm,
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  badgeText: {
+    color: colors.muted,
+    fontSize: 11,
+    fontWeight: "600",
   },
   rowError: {
     color: colors.danger,
