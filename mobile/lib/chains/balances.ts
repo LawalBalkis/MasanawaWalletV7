@@ -106,16 +106,24 @@ function addressForChain(chain: ChainConfig, addresses: WalletAddresses): string
   }
 }
 
-/** USD prices for all chains via CoinGecko public API (no key). */
-export async function fetchPrices(): Promise<Record<string, number>> {
-  const ids = [...new Set(CHAINS.map((c) => c.coingeckoId))].join(",")
+/**
+ * USD prices for arbitrary CoinGecko coin ids (public API, no key).
+ * `vsCurrency` lets callers price in EUR/GBP/etc.
+ */
+export async function fetchPricesFor(
+  coingeckoIds: string[],
+  vsCurrency = "usd",
+): Promise<Record<string, number>> {
+  const ids = [...new Set(coingeckoIds)].join(",")
+  if (!ids) return {}
+  const cur = vsCurrency.toLowerCase()
   try {
-    const res = await fetchWithTimeout(`${COINGECKO_PRICE_URL}?ids=${ids}&vs_currencies=usd`)
+    const res = await fetchWithTimeout(`${COINGECKO_PRICE_URL}?ids=${ids}&vs_currencies=${cur}`)
     if (!res.ok) return {}
-    const json = (await res.json()) as Record<string, { usd?: number }>
+    const json = (await res.json()) as Record<string, Record<string, number>>
     const out: Record<string, number> = {}
     for (const [id, v] of Object.entries(json)) {
-      if (typeof v?.usd === "number") out[id] = v.usd
+      if (typeof v?.[cur] === "number") out[id] = v[cur]
     }
     return out
   } catch {
@@ -123,9 +131,20 @@ export async function fetchPrices(): Promise<Record<string, number>> {
   }
 }
 
-/** Fetch all chain balances in parallel. Individual failures don't reject. */
-export async function fetchAllBalances(addresses: WalletAddresses): Promise<ChainBalance[]> {
-  const prices = await fetchPrices()
+/** USD prices for all native chain assets. */
+export async function fetchPrices(): Promise<Record<string, number>> {
+  return fetchPricesFor(CHAINS.map((c) => c.coingeckoId))
+}
+
+/**
+ * Fetch all native chain balances in parallel. Individual failures don't
+ * reject. Pass `sharedPrices` to reuse a price map fetched elsewhere.
+ */
+export async function fetchAllBalances(
+  addresses: WalletAddresses,
+  sharedPrices?: Record<string, number>,
+): Promise<ChainBalance[]> {
+  const prices = sharedPrices ?? (await fetchPrices())
   return Promise.all(
     CHAINS.map(async (chain): Promise<ChainBalance> => {
       const address = addressForChain(chain, addresses)
