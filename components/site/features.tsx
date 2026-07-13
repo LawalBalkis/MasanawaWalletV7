@@ -1,4 +1,4 @@
-import { FEATURES } from './data'
+import { PRODUCT_FEATURES } from './data'
 
 export function Features() {
   return (
@@ -15,7 +15,7 @@ export function Features() {
       </div>
 
       <div className="mt-14 grid gap-px overflow-hidden rounded-2xl border border-border bg-border sm:grid-cols-2 lg:grid-cols-3">
-        {FEATURES.map((f) => (
+        {PRODUCT_FEATURES.map((f) => (
           <div key={f.title} className="flex flex-col gap-4 bg-card p-8">
             <span className="flex size-11 items-center justify-center rounded-xl bg-accent text-accent-foreground">
               <f.icon className="size-5" />
