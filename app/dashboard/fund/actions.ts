@@ -17,6 +17,8 @@ export interface AccountActionResult {
   error?: string
   /** Field-level validation errors keyed by input name. */
   fieldErrors?: Record<string, string>
+  /** Submitted values echoed back so the form can repopulate after an error. Never includes idNumber. */
+  values?: Record<string, string>
 }
 
 function toDetails(account: {
@@ -96,8 +98,11 @@ export async function getOrCreateVirtualAccount(
   if (idType !== 'nin' && idType !== 'bvn') fieldErrors.idType = 'Choose NIN or BVN'
   if (!/^\d{11}$/.test(idNumber)) fieldErrors.idNumber = 'Must be exactly 11 digits'
 
+  // Echo submitted values (except sensitive idNumber) so the form repopulates after errors.
+  const values = { firstName, lastName, email, phone, idType }
+
   if (Object.keys(fieldErrors).length > 0) {
-    return { ok: false, fieldErrors, error: 'Please fix the highlighted fields.' }
+    return { ok: false, fieldErrors, values, error: 'Please fix the highlighted fields.' }
   }
 
   const reference = billstackReferenceForUser(getCurrentUserId())
@@ -123,12 +128,12 @@ export async function getOrCreateVirtualAccount(
 
     const account = created.data.account?.[0]
     if (!account) {
-      return { ok: false, error: 'Account was created but no details were returned. Please refresh.' }
+      return { ok: false, values, error: 'Account was created but no details were returned. Please refresh.' }
     }
 
     return { ok: true, account: toDetails(account) }
   } catch (err) {
     console.error('[v0] getOrCreateVirtualAccount failed:', err)
-    return { ok: false, error: friendlyBillstackMessage(err) }
+    return { ok: false, values, error: friendlyBillstackMessage(err) }
   }
 }
