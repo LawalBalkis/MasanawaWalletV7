@@ -18,7 +18,12 @@ export function Hero() {
         </div>
       </div>
 
-      <div className="mx-auto grid max-w-7xl items-center gap-10 px-4 py-12 sm:px-8 lg:grid-cols-[1.02fr_0.98fr] lg:gap-10 lg:px-12 lg:py-14 xl:py-16">
+      {/* subtle dot texture */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(var(--border)_1px,transparent_1px)] [background-size:28px_28px] [mask-image:radial-gradient(ellipse_70%_60%_at_70%_35%,black_0%,transparent_75%)] opacity-60"
+      />
+      <div className="relative mx-auto grid max-w-7xl items-center gap-10 px-4 py-12 sm:px-8 lg:grid-cols-[1.02fr_0.98fr] lg:gap-10 lg:px-12 lg:py-14 xl:py-16">
         <div className="flex flex-col items-center justify-center text-center lg:items-start lg:text-left">
           <div className="inline-flex w-fit items-center gap-2 rounded-full border border-primary/30 bg-accent px-3 py-1.5 text-xs font-medium text-accent-foreground">
             <VerifiedIcon className="size-4" />
@@ -31,18 +36,18 @@ export function Hero() {
             Fund with your personal NGN account, buy or sell crypto, send to any Masanawa username, and
             withdraw naira to your bank.
           </p>
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+          <div className="mt-8 flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
             <Link
               href="/dashboard"
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-6 py-3.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 focus-visible:outline-2"
+              className="group inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-6 py-3.5 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:opacity-90 hover:shadow-primary/30 focus-visible:outline-2"
             >
-              Open Masanawa <ArrowRight className="size-4" />
+              Open Masanawa <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
             </Link>
             <a
               href="#flow"
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-card px-6 py-3.5 text-sm font-semibold text-foreground transition-colors hover:bg-secondary focus-visible:outline-2"
+              className="group inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-card px-6 py-3.5 text-sm font-semibold text-foreground transition-colors hover:border-primary/40 hover:bg-secondary focus-visible:outline-2"
             >
-              See how it works <ChevronRight className="size-4" />
+              See how it works <ChevronRight className="size-4 transition-transform group-hover:translate-x-0.5" />
             </a>
           </div>
           <ul className="mt-9 flex w-full flex-wrap justify-center gap-x-5 gap-y-2.5 border-t border-border pt-6 lg:justify-start">
