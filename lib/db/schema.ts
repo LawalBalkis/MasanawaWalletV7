@@ -45,6 +45,12 @@ export const users = pgTable(
     kycAddress: text('kyc_address'),
     kycIdType: text('kyc_id_type'),
     kycIdNumber: text('kyc_id_number'),
+    /** The user id of whoever referred this user, if any. */
+    referredBy: text('referred_by'),
+    /** NGN already moved from the referral balance into the wallet. */
+    referralWithdrawn: numeric('referral_withdrawn', { precision: 20, scale: 2, mode: 'number' })
+      .notNull()
+      .default(0),
     // Preferences.
     notifyTransactions: boolean('notify_transactions').notNull().default(true),
     notifyPrices: boolean('notify_prices').notNull().default(false),
@@ -183,6 +189,38 @@ export const adminAuditLog = pgTable(
     index('admin_audit_actor_idx').on(t.actorId),
     index('admin_audit_target_idx').on(t.targetUserId),
     index('admin_audit_created_idx').on(t.createdAt),
+  ],
+)
+
+/**
+ * Referral relationships. One row per invited user, created at sign-up when a
+ * valid referral code is supplied. A referral "qualifies" once the invited
+ * user's cumulative funding reaches the threshold — at which point the referrer
+ * earns a fixed bonus into their (separate) referral balance.
+ */
+export const referrals = pgTable(
+  'referrals',
+  {
+    id: text('id').primaryKey(),
+    /** The user who invited (earns the bonus). */
+    referrerId: text('referrer_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** The invited user. One referral per invited user. */
+    referredUserId: text('referred_user_id')
+      .notNull()
+      .unique()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** Whether the referred user's funding crossed the qualification threshold. */
+    qualified: boolean('qualified').notNull().default(false),
+    /** Fixed NGN bonus the referrer earns once this referral qualifies. */
+    bonusNgn: numeric('bonus_ngn', { precision: 20, scale: 2, mode: 'number' }).notNull().default(200),
+    qualifiedAt: timestamp('qualified_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('referrals_referrer_idx').on(t.referrerId),
+    index('referrals_referred_user_idx').on(t.referredUserId),
   ],
 )
 

@@ -23,6 +23,9 @@ import type {
   NewUser,
   NotificationInput,
   PlatformStats,
+  ReferralListItem,
+  ReferralRecord,
+  ReferralStats,
   SessionRecord,
   UserListOptions,
   UserPatch,
@@ -42,7 +45,22 @@ const {
   beneficiaries,
   notifications,
   adminAuditLog,
+  referrals,
 } = schema
+
+type ReferralRow = typeof referrals.$inferSelect
+
+function toReferralRecord(row: ReferralRow): ReferralRecord {
+  return {
+    id: row.id,
+    referrerId: row.referrerId,
+    referredUserId: row.referredUserId,
+    qualified: row.qualified,
+    bonusNgn: row.bonusNgn,
+    qualifiedAt: row.qualifiedAt ? row.qualifiedAt.toISOString() : null,
+    createdAt: row.createdAt.toISOString(),
+  }
+}
 
 type UserRow = typeof users.$inferSelect
 type TxRow = typeof transactions.$inferSelect
@@ -346,6 +364,119 @@ export class DrizzleWalletStore implements WalletStore {
       .from(fundings)
       .where(eq(fundings.accountReference, accountReference))
     return row?.total ?? 0
+  }
+
+  async recordReferral(referrerId: string, referredUserId: string, bonusNgn: number) {
+    await getDb().transaction(async (tx) => {
+      const inserted = await tx
+        .insert(referrals)
+        .values({
+          id: `ref_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`,
+          referrerId,
+          referredUserId,
+          bonusNgn,
+        })
+        .onConflictDoNothing()
+        .returning({ id: referrals.id })
+      if (inserted.length > 0) {
+        await tx.update(users).set({ referredBy: referrerId }).where(eq(users.id, referredUserId))
+      }
+    })
+  }
+
+  async getReferralForUser(referredUserId: string) {
+    const [row] = await getDb()
+      .select()
+      .from(referrals)
+      .where(eq(referrals.referredUserId, referredUserId))
+      .limit(1)
+    return row ? toReferralRecord(row) : null
+  }
+
+  async qualifyReferral(referredUserId: string) {
+    const [row] = await getDb()
+      .update(referrals)
+      .set({ qualified: true, qualifiedAt: new Date() })
+      .where(and(eq(referrals.referredUserId, referredUserId), eq(referrals.qualified, false)))
+      .returning()
+    return row ? toReferralRecord(row) : null
+  }
+
+  async getReferralStats(referrerId: string): Promise<ReferralStats> {
+    const db = getDb()
+    const [rows, [userRow]] = await Promise.all([
+      db
+        .select({ referral: referrals, name: users.name, username: users.username })
+        .from(referrals)
+        .innerJoin(users, eq(referrals.referredUserId, users.id))
+        .where(eq(referrals.referrerId, referrerId))
+        .orderBy(desc(referrals.createdAt)),
+      db
+        .select({ referralWithdrawn: users.referralWithdrawn })
+        .from(users)
+        .where(eq(users.id, referrerId))
+        .limit(1),
+    ])
+    const withdrawnNgn = userRow?.referralWithdrawn ?? 0
+    const list: ReferralListItem[] = rows.map((r) => ({
+      referredUserId: r.referral.referredUserId,
+      referredName: r.name,
+      referredUsername: r.username,
+      qualified: r.referral.qualified,
+      bonusNgn: r.referral.bonusNgn,
+      joinedAt: r.referral.createdAt.toISOString(),
+    }))
+    const qualified = list.filter((r) => r.qualified)
+    const earnedNgn = qualified.reduce((sum, r) => sum + r.bonusNgn, 0)
+    return {
+      total: list.length,
+      qualified: qualified.length,
+      pending: list.length - qualified.length,
+      earnedNgn,
+      withdrawnNgn,
+      availableNgn: Math.max(0, earnedNgn - withdrawnNgn),
+      referrals: list,
+    }
+  }
+
+  async withdrawReferralEarnings(userId: string, amount: number, txId: string) {
+    return await getDb().transaction(async (tx) => {
+      const [earnedRow] = await tx
+        .select({
+          earned: sql<number>`coalesce(sum(${referrals.bonusNgn}) filter (where ${referrals.qualified}), 0)::float8`,
+        })
+        .from(referrals)
+        .where(eq(referrals.referrerId, userId))
+      const [userRow] = await tx
+        .select({ withdrawn: users.referralWithdrawn })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1)
+      if (!userRow) return false
+      const available = (earnedRow?.earned ?? 0) - userRow.withdrawn
+      if (amount <= 0 || amount > available) return false
+
+      await tx
+        .update(users)
+        .set({ referralWithdrawn: sql`${users.referralWithdrawn} + ${amount}` })
+        .where(eq(users.id, userId))
+      await tx
+        .insert(transactions)
+        .values({
+          id: txId,
+          userId,
+          type: 'receive',
+          asset: 'NGN',
+          amount,
+          ngnValue: amount,
+          feeNgn: 0,
+          counterparty: 'Masanawa Referrals',
+          note: 'Referral earnings',
+          status: 'completed',
+        })
+        .onConflictDoNothing()
+      return true
+    })
   }
 
   async listBeneficiaries(userId: string): Promise<Beneficiary[]> {

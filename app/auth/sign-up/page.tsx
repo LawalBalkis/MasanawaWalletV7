@@ -5,13 +5,25 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { signUpAction, type AuthFormState } from '@/lib/auth/actions'
 import Link from 'next/link'
-import { useActionState, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
+import { Suspense, useActionState, useState } from 'react'
 
 const initialState: AuthFormState = {}
 
 export default function SignUpPage() {
+  return (
+    <Suspense fallback={null}>
+      <SignUpForm />
+    </Suspense>
+  )
+}
+
+function SignUpForm() {
   const [state, formAction, pending] = useActionState(signUpAction, initialState)
   const [username, setUsername] = useState('')
+
+  const searchParams = useSearchParams()
+  const referralCode = (searchParams.get('ref') ?? '').trim().replace(/^@/, '').toLowerCase()
 
   const usernameClean = username.trim().replace(/^@/, '').toLowerCase()
   const usernameValid = usernameClean.length === 0 || /^[a-z0-9_]{3,20}$/.test(usernameClean)
@@ -27,7 +39,20 @@ export default function SignUpPage() {
         </p>
       </header>
 
+      {referralCode && (
+        <div className="mt-4 rounded-lg border border-primary/30 bg-primary/5 px-4 py-3">
+          <p className="text-sm text-foreground">
+            You were invited by{' '}
+            <span className="font-mono font-medium text-primary">@{referralCode}</span>
+          </p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Fund your wallet with ₦2,000 or more and they&apos;ll earn a referral bonus.
+          </p>
+        </div>
+      )}
+
       <form className="mt-6 flex flex-col gap-5" action={formAction}>
+        <input type="hidden" name="ref" value={referralCode} />
         <div className="flex flex-col gap-2">
           <Label htmlFor="signup-name">Full name</Label>
           <Input
