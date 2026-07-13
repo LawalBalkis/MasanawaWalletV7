@@ -76,20 +76,50 @@ export async function POST(request: Request) {
       return NextResponse.json(ACK)
     }
 
-    // 6. Credit the wallet — amount comes from the verified API record.
-    const credited = await walletStore.recordFunding({
-      transactionRef: tx.transaction_ref,
-      accountReference: reference,
-      amount: Number(tx.amount),
-      payerName: `${payload.data.payer.first_name} ${payload.data.payer.last_name}`.trim(),
-      payerAccountNumber: payload.data.payer.account_number,
-      receivedAt: tx.created_at,
-    })
+    // 6. Resolve the wallet owner from the reserved-account reference. If no
+    //    user maps to it, ACK so Billstack stops retrying an unclaimable event.
+    const user = await walletStore.getUserByBillstackRef(reference)
+    if (!user) {
+      console.warn(
+        `[billstack-webhook] No user for account ref ${reference} (tx ${transaction_ref}); acknowledging without credit`,
+      )
+      return NextResponse.json(ACK)
+    }
+
+    const payerName =
+      `${payload.data.payer.first_name} ${payload.data.payer.last_name}`.trim() || 'Bank transfer'
+    const amount = Number(tx.amount)
+
+    // 7. Credit the wallet atomically — the idempotency log and the NGN ledger
+    //    row are written together. Deterministic tx id gives a second dedupe
+    //    layer on top of the funding primary key.
+    const credited = await walletStore.recordFunding(
+      {
+        transactionRef: tx.transaction_ref,
+        accountReference: reference,
+        amount,
+        payerName,
+        payerAccountNumber: payload.data.payer.account_number,
+        receivedAt: tx.created_at,
+      },
+      {
+        userId: user.id,
+        txId: `fund_${tx.transaction_ref.replace(/[^a-zA-Z0-9]/g, '')}`,
+        note: `Bank deposit from ${payerName}`,
+      },
+    )
 
     if (credited) {
       console.log(
-        `[billstack-webhook] Credited NGN ${tx.amount} to account ref ${reference} (tx ${transaction_ref})`,
+        `[billstack-webhook] Credited NGN ${amount} to ${user.username} (${reference}, tx ${transaction_ref})`,
       )
+      if (user.notifyTransactions) {
+        await walletStore.addNotification({
+          userId: user.id,
+          title: 'Wallet funded',
+          body: `Your NGN wallet was credited with ₦${amount.toLocaleString('en-NG')} from ${payerName}.`,
+        })
+      }
     }
   } catch (err) {
     // Verification call failed — respond non-200 so Billstack retries later.

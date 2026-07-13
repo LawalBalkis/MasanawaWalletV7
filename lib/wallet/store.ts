@@ -31,6 +31,7 @@ export interface UserRecord {
   email: string
   phone: string | null
   passwordHash: string
+  emailVerified: boolean
   pinHash: string | null
   tier: TierId
   billstackRef: string
@@ -61,6 +62,8 @@ export type UserPatch = Partial<
     | 'name'
     | 'email'
     | 'phone'
+    | 'passwordHash'
+    | 'emailVerified'
     | 'pinHash'
     | 'tier'
     | 'kycAddress'
@@ -104,6 +107,37 @@ export interface FundingRecord {
   receivedAt: string
 }
 
+/**
+ * Details needed to credit a user's NGN balance when a funding is newly
+ * recorded. Passed alongside the FundingRecord so the idempotency log and the
+ * ledger credit are written atomically — a funding can never be logged without
+ * its matching ledger row (which would silently swallow a customer's money).
+ */
+export interface FundingCredit {
+  /** The user who owns the virtual account. */
+  userId: string
+  /** Ledger transaction id to create. Deterministic for dedupe safety. */
+  txId: string
+  /** Optional note for the ledger row / notification. */
+  note?: string
+}
+
+export type AuthTokenKind = 'email_verify' | 'password_reset'
+
+/**
+ * A short-lived, single-use auth token (email OTP or password reset). Only the
+ * SHA-256 hash of the secret is stored; the raw value is emailed to the user.
+ */
+export interface AuthTokenRecord {
+  id: string
+  userId: string
+  kind: AuthTokenKind
+  secretHash: string
+  /** ISO timestamp. */
+  expiresAt: string
+  attempts: number
+}
+
 // ---------------------------------------------------------------------------
 // The store contract
 // ---------------------------------------------------------------------------
@@ -122,14 +156,22 @@ export interface WalletStore {
   getSession(tokenHash: string): Promise<SessionRecord | null>
   deleteSession(tokenHash: string): Promise<void>
 
+  // Auth tokens (email OTP + password reset)
+  createAuthToken(token: AuthTokenRecord): Promise<void>
+  getLatestAuthToken(userId: string, kind: AuthTokenKind): Promise<AuthTokenRecord | null>
+  getAuthTokenBySecret(secretHash: string, kind: AuthTokenKind): Promise<AuthTokenRecord | null>
+  incrementAuthTokenAttempts(id: string): Promise<number>
+  deleteAuthToken(id: string): Promise<void>
+  deleteAuthTokensForUser(userId: string, kind: AuthTokenKind): Promise<void>
+
   // Ledger (balances are always derived from these rows)
   addTransactions(txs: LedgerTx[]): Promise<void>
   listTransactions(userId: string, limit?: number): Promise<WalletTx[]>
   getTransaction(userId: string, id: string): Promise<WalletTx | null>
   getBalances(userId: string): Promise<Balances>
 
-  // Fundings (Billstack webhook idempotency log)
-  recordFunding(record: FundingRecord): Promise<boolean>
+  // Fundings (Billstack webhook idempotency log + atomic NGN credit)
+  recordFunding(record: FundingRecord, credit: FundingCredit): Promise<boolean>
   hasFunding(transactionRef: string): Promise<boolean>
   listFundings(accountReference: string): Promise<FundingRecord[]>
   getFundedTotal(accountReference: string): Promise<number>
@@ -166,6 +208,7 @@ export function billstackReferenceForUser(userId: string): string {
 interface MemoryState {
   users: Map<string, UserRecord>
   sessions: Map<string, SessionRecord>
+  authTokens: Map<string, AuthTokenRecord>
   transactions: LedgerTx[]
   fundings: Map<string, FundingRecord>
   beneficiaries: Map<string, Beneficiary & { userId: string }>
@@ -177,6 +220,7 @@ function seedState(): MemoryState {
   const state: MemoryState = {
     users: new Map(),
     sessions: new Map(),
+    authTokens: new Map(),
     transactions: [],
     fundings: new Map(),
     beneficiaries: new Map(),
@@ -195,6 +239,7 @@ function seedState(): MemoryState {
     email,
     phone: null,
     passwordHash,
+    emailVerified: true,
     pinHash,
     tier: 1,
     billstackRef: billstackReferenceForUser(id),
@@ -286,6 +331,7 @@ class InMemoryWalletStore implements WalletStore {
     const record: UserRecord = {
       ...user,
       phone: user.phone ?? null,
+      emailVerified: false,
       pinHash: null,
       tier: 1,
       kycAddress: null,
@@ -355,6 +401,47 @@ class InMemoryWalletStore implements WalletStore {
     getState().sessions.delete(tokenHash)
   }
 
+  async createAuthToken(token: AuthTokenRecord) {
+    getState().authTokens.set(token.id, token)
+  }
+
+  async getLatestAuthToken(userId: string, kind: AuthTokenKind) {
+    let latest: AuthTokenRecord | null = null
+    for (const t of getState().authTokens.values()) {
+      if (t.userId === userId && t.kind === kind) {
+        if (!latest || t.expiresAt > latest.expiresAt) latest = t
+      }
+    }
+    return latest
+  }
+
+  async getAuthTokenBySecret(secretHash: string, kind: AuthTokenKind) {
+    for (const t of getState().authTokens.values()) {
+      if (t.secretHash === secretHash && t.kind === kind) return t
+    }
+    return null
+  }
+
+  async incrementAuthTokenAttempts(id: string) {
+    const s = getState()
+    const t = s.authTokens.get(id)
+    if (!t) return 0
+    const updated = { ...t, attempts: t.attempts + 1 }
+    s.authTokens.set(id, updated)
+    return updated.attempts
+  }
+
+  async deleteAuthToken(id: string) {
+    getState().authTokens.delete(id)
+  }
+
+  async deleteAuthTokensForUser(userId: string, kind: AuthTokenKind) {
+    const s = getState()
+    for (const [id, t] of s.authTokens) {
+      if (t.userId === userId && t.kind === kind) s.authTokens.delete(id)
+    }
+  }
+
   async addTransactions(txs: LedgerTx[]) {
     getState().transactions.push(...txs)
   }
@@ -378,10 +465,24 @@ class InMemoryWalletStore implements WalletStore {
     return computeBalances(await this.listTransactions(userId))
   }
 
-  async recordFunding(record: FundingRecord) {
+  async recordFunding(record: FundingRecord, credit: FundingCredit) {
     const s = getState()
     if (s.fundings.has(record.transactionRef)) return false
+    // Log the funding AND credit the ledger together — balances are derived
+    // from ledger rows, so a funding without a 'fund' row would never appear.
     s.fundings.set(record.transactionRef, record)
+    s.transactions.push({
+      id: credit.txId,
+      userId: credit.userId,
+      type: 'fund',
+      asset: 'NGN',
+      amount: record.amount,
+      ngnValue: record.amount,
+      counterparty: record.payerName,
+      note: credit.note ?? `Bank deposit from ${record.payerName}`,
+      status: 'completed',
+      date: record.receivedAt,
+    })
     return true
   }
 

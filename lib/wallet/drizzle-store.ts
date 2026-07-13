@@ -11,6 +11,9 @@ import { and, desc, eq, sql } from 'drizzle-orm'
 import type { AssetSymbol, Beneficiary, TxType, WalletNotification, WalletTx } from './assets'
 import { computeBalances, type Balances } from './ledger'
 import type {
+  AuthTokenKind,
+  AuthTokenRecord,
+  FundingCredit,
   FundingRecord,
   LedgerTx,
   NewUser,
@@ -22,12 +25,25 @@ import type {
 } from './store'
 import type { TierId } from './tiers'
 
-const { users, sessions, transactions, fundings, beneficiaries, notifications } = schema
+const { users, sessions, authTokens, transactions, fundings, beneficiaries, notifications } =
+  schema
 
 type UserRow = typeof users.$inferSelect
 type TxRow = typeof transactions.$inferSelect
 type FundingRow = typeof fundings.$inferSelect
 type NotificationRow = typeof notifications.$inferSelect
+type AuthTokenRow = typeof authTokens.$inferSelect
+
+function toAuthToken(row: AuthTokenRow): AuthTokenRecord {
+  return {
+    id: row.id,
+    userId: row.userId,
+    kind: row.kind as AuthTokenKind,
+    secretHash: row.secretHash,
+    expiresAt: row.expiresAt.toISOString(),
+    attempts: row.attempts,
+  }
+}
 
 function toUserRecord(row: UserRow): UserRecord {
   return {
@@ -154,6 +170,55 @@ export class DrizzleWalletStore implements WalletStore {
     await getDb().delete(sessions).where(eq(sessions.tokenHash, tokenHash))
   }
 
+  async createAuthToken(token: AuthTokenRecord) {
+    await getDb().insert(authTokens).values({
+      id: token.id,
+      userId: token.userId,
+      kind: token.kind,
+      secretHash: token.secretHash,
+      expiresAt: new Date(token.expiresAt),
+      attempts: token.attempts,
+    })
+  }
+
+  async getLatestAuthToken(userId: string, kind: AuthTokenKind) {
+    const [row] = await getDb()
+      .select()
+      .from(authTokens)
+      .where(and(eq(authTokens.userId, userId), eq(authTokens.kind, kind)))
+      .orderBy(desc(authTokens.createdAt))
+      .limit(1)
+    return row ? toAuthToken(row) : null
+  }
+
+  async getAuthTokenBySecret(secretHash: string, kind: AuthTokenKind) {
+    const [row] = await getDb()
+      .select()
+      .from(authTokens)
+      .where(and(eq(authTokens.secretHash, secretHash), eq(authTokens.kind, kind)))
+      .limit(1)
+    return row ? toAuthToken(row) : null
+  }
+
+  async incrementAuthTokenAttempts(id: string) {
+    const [row] = await getDb()
+      .update(authTokens)
+      .set({ attempts: sql`${authTokens.attempts} + 1` })
+      .where(eq(authTokens.id, id))
+      .returning({ attempts: authTokens.attempts })
+    return row?.attempts ?? 0
+  }
+
+  async deleteAuthToken(id: string) {
+    await getDb().delete(authTokens).where(eq(authTokens.id, id))
+  }
+
+  async deleteAuthTokensForUser(userId: string, kind: AuthTokenKind) {
+    await getDb()
+      .delete(authTokens)
+      .where(and(eq(authTokens.userId, userId), eq(authTokens.kind, kind)))
+  }
+
   async addTransactions(txs: LedgerTx[]) {
     if (txs.length === 0) return
     await getDb()
@@ -198,20 +263,45 @@ export class DrizzleWalletStore implements WalletStore {
     return computeBalances(await this.listTransactions(userId))
   }
 
-  async recordFunding(record: FundingRecord) {
-    const inserted = await getDb()
-      .insert(fundings)
-      .values({
-        transactionRef: record.transactionRef,
-        accountReference: record.accountReference,
-        amount: record.amount,
-        payerName: record.payerName,
-        payerAccountNumber: record.payerAccountNumber,
-        receivedAt: new Date(record.receivedAt),
-      })
-      .onConflictDoNothing()
-      .returning({ ref: fundings.transactionRef })
-    return inserted.length > 0
+  async recordFunding(record: FundingRecord, credit: FundingCredit) {
+    // Atomic: the idempotency row and the NGN ledger credit are inserted in a
+    // single transaction. If either fails, neither is committed, so Billstack's
+    // retry can safely re-attempt without double-crediting.
+    return await getDb().transaction(async (tx) => {
+      const inserted = await tx
+        .insert(fundings)
+        .values({
+          transactionRef: record.transactionRef,
+          accountReference: record.accountReference,
+          amount: record.amount,
+          payerName: record.payerName,
+          payerAccountNumber: record.payerAccountNumber,
+          receivedAt: new Date(record.receivedAt),
+        })
+        .onConflictDoNothing()
+        .returning({ ref: fundings.transactionRef })
+
+      if (inserted.length === 0) return false
+
+      await tx
+        .insert(transactions)
+        .values({
+          id: credit.txId,
+          userId: credit.userId,
+          type: 'fund',
+          asset: 'NGN',
+          amount: record.amount,
+          ngnValue: record.amount,
+          feeNgn: 0,
+          counterparty: record.payerName,
+          note: credit.note ?? `Bank deposit from ${record.payerName}`,
+          status: 'completed',
+          createdAt: new Date(record.receivedAt),
+        })
+        .onConflictDoNothing()
+
+      return true
+    })
   }
 
   async hasFunding(transactionRef: string) {
