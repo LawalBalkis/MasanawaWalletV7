@@ -1,4 +1,5 @@
 import { ArrowDownToLine, ArrowRight, BadgeCheck, ChevronRight, Plus, Send } from 'lucide-react'
+import Link from 'next/link'
 import { TRUST_POINTS, VERIFIED_LABEL } from './data'
 
 export function Hero() {
@@ -11,7 +12,7 @@ export function Hero() {
           <h1 className="mt-8 max-w-3xl text-balance text-5xl font-semibold leading-[1.03] tracking-[-0.045em] text-foreground sm:text-6xl lg:text-7xl">Naira in. Crypto out. Money moves your way.</h1>
           <p className="mt-6 max-w-xl text-pretty text-lg leading-relaxed text-muted-foreground sm:text-xl">Fund with your personal NGN account, buy or sell crypto, send to any Masanawa username, and withdraw naira to your bank.</p>
           <div className="mt-9 flex flex-col gap-3 sm:flex-row">
-            <a href="#get-started" className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-6 py-3.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 focus-visible:outline-2">Open Masanawa <ArrowRight className="size-4" /></a>
+            <Link href="/dashboard" className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-6 py-3.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 focus-visible:outline-2">Open Masanawa <ArrowRight className="size-4" /></Link>
             <a href="#flow" className="inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-card px-6 py-3.5 text-sm font-semibold text-foreground transition-colors hover:bg-secondary focus-visible:outline-2">See how it works <ChevronRight className="size-4" /></a>
           </div>
           <ul className="mt-12 grid gap-x-6 gap-y-3 border-t border-border pt-6 sm:grid-cols-2">
