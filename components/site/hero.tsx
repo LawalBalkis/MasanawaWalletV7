@@ -132,7 +132,7 @@ export function Hero() {
 
       {/* stat strip */}
       <div className="border-t border-border bg-secondary/40">
-        <dl className="mx-auto grid max-w-7xl grid-cols-2 divide-x divide-border border-x border-border lg:grid-cols-4">
+        <dl className="mx-auto grid max-w-7xl grid-cols-2 divide-x divide-y divide-border border-x border-border lg:grid-cols-4 lg:divide-y-0">
           {HERO_STATS.map((stat) => (
             <div key={stat.label} className="flex flex-col gap-1 px-4 py-5 sm:px-8 lg:px-6">
               <dt className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">

@@ -20,7 +20,7 @@ export function HowItWorks() {
 
         <ol className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {MONEY_FLOW.map((step, i) => (
-            <li key={step.step} className="relative flex flex-col gap-4 rounded-2xl border border-border bg-card p-6 sm:p-7">
+            <li key={step.step} className="relative flex flex-col gap-4 rounded-2xl border border-border bg-card p-6 transition-colors hover:border-primary/40 hover:bg-card/80 sm:p-7">
               <div className="flex items-center justify-between gap-3">
                 <span className="flex size-11 items-center justify-center rounded-xl bg-accent text-accent-foreground">
                   <step.icon className="size-5" />
