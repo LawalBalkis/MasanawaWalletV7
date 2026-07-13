@@ -58,3 +58,10 @@ export const FAQS = [
 
 export const TRUST_POINTS = ['Virtual NGN account', 'Username transfers', 'Rates shown before confirmation', 'Nigerian bank withdrawals']
 export const VERIFIED_LABEL = { icon: BadgeCheck, text: 'Built for everyday money movement in Nigeria' }
+
+export const HERO_STATS = [
+  { label: 'Settlement', value: 'Instant' },
+  { label: 'Send by', value: '@username' },
+  { label: 'Withdraw to', value: 'NG banks' },
+  { label: 'Assets', value: 'NGN + 5' },
+]
