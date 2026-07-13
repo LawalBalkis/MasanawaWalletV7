@@ -1,39 +1,60 @@
-// ---------------------------------------------------------------------------
-// Minimal in-memory sliding-window rate limiter for auth and money actions.
-// Per-instance only — good enough for abuse throttling without an extra
-// dependency. Swap for Redis-backed limiting if you need cross-instance state.
-// ---------------------------------------------------------------------------
 import 'server-only'
 
-interface Window {
-  timestamps: number[]
+import { getWalletStore } from '@/lib/wallet/store'
+
+const memoryLimiter = globalThis as unknown as {
+  __masanawaRateLimits?: Map<string, { count: number; windowStart: number }>
 }
 
-const globalLimiter = globalThis as unknown as {
-  __masanawaRateLimits?: Map<string, Window>
-}
-
-function getWindows(): Map<string, Window> {
-  if (!globalLimiter.__masanawaRateLimits) {
-    globalLimiter.__masanawaRateLimits = new Map()
+function getMemoryMap(): Map<string, { count: number; windowStart: number }> {
+  if (!memoryLimiter.__masanawaRateLimits) {
+    memoryLimiter.__masanawaRateLimits = new Map()
   }
-  return globalLimiter.__masanawaRateLimits
+  return memoryLimiter.__masanawaRateLimits
+}
+
+function memoryCheck(key: string, maxAttempts: number, windowMs: number): boolean {
+  const map = getMemoryMap()
+  const now = Date.now()
+  const entry = map.get(key)
+  if (!entry || now - entry.windowStart >= windowMs) {
+    map.set(key, { count: 1, windowStart: now })
+    return true
+  }
+  if (entry.count >= maxAttempts) {
+    return false
+  }
+  entry.count += 1
+  map.set(key, entry)
+  return true
+}
+
+async function postgresCheck(key: string, maxAttempts: number, windowMs: number): Promise<boolean> {
+  const store = getWalletStore()
+  const now = Date.now()
+  const existing = await store.getRateLimit(key)
+  if (!existing || now - new Date(existing.windowStart).getTime() >= windowMs) {
+    await store.upsertRateLimit(key, 1, new Date(now).toISOString())
+    return true
+  }
+  if (existing.count >= maxAttempts) {
+    return false
+  }
+  await store.upsertRateLimit(key, existing.count + 1, existing.windowStart)
+  return true
 }
 
 /**
  * Returns true if the action is allowed, false if rate-limited.
- * `key` should namespace the action + subject, e.g. "signin:user@x.com".
+ * Uses Postgres when available (cross-instance), falls back to in-memory.
  */
-export function rateLimit(key: string, maxAttempts: number, windowMs: number): boolean {
-  const windows = getWindows()
-  const now = Date.now()
-  const entry = windows.get(key) ?? { timestamps: [] }
-  entry.timestamps = entry.timestamps.filter((t) => now - t < windowMs)
-  if (entry.timestamps.length >= maxAttempts) {
-    windows.set(key, entry)
-    return false
+export async function rateLimit(key: string, maxAttempts: number, windowMs: number): Promise<boolean> {
+  if (process.env.DATABASE_URL) {
+    try {
+      return await postgresCheck(key, maxAttempts, windowMs)
+    } catch {
+      return memoryCheck(key, maxAttempts, windowMs)
+    }
   }
-  entry.timestamps.push(now)
-  windows.set(key, entry)
-  return true
+  return memoryCheck(key, maxAttempts, windowMs)
 }

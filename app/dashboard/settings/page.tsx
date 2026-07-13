@@ -17,6 +17,7 @@ export default async function SettingsPage() {
     notifyProduct: user.notifyProduct,
     twoFactor: user.twoFactor,
     biometric: user.biometric,
+    pendingEmail: user.pendingEmail,
   }
 
   return <SettingsClient user={settingsUser} beneficiaries={beneficiaries} />

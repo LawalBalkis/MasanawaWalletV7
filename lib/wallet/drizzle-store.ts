@@ -46,6 +46,7 @@ const {
   notifications,
   adminAuditLog,
   referrals,
+  rateLimits,
 } = schema
 
 type ReferralRow = typeof referrals.$inferSelect
@@ -181,6 +182,9 @@ export class DrizzleWalletStore implements WalletStore {
       tokenHash: session.tokenHash,
       userId: session.userId,
       expiresAt: new Date(session.expiresAt),
+      ip: session.ip ?? null,
+      userAgent: session.userAgent ?? null,
+      lastSeenAt: new Date(),
     })
   }
 
@@ -195,15 +199,75 @@ export class DrizzleWalletStore implements WalletStore {
       await this.deleteSession(tokenHash)
       return null
     }
+    // Touch lastSeenAt in the background (fire-and-forget)
+    getDb()
+      .update(sessions)
+      .set({ lastSeenAt: new Date() })
+      .where(eq(sessions.tokenHash, tokenHash))
+      .then(() => {}, () => {})
     return {
       tokenHash: row.tokenHash,
       userId: row.userId,
       expiresAt: row.expiresAt.toISOString(),
+      ip: row.ip,
+      userAgent: row.userAgent,
+      lastSeenAt: row.lastSeenAt.toISOString(),
+      createdAt: row.createdAt.toISOString(),
     }
   }
 
   async deleteSession(tokenHash: string) {
     await getDb().delete(sessions).where(eq(sessions.tokenHash, tokenHash))
+  }
+
+  async listSessions(userId: string) {
+    const rows = await getDb()
+      .select()
+      .from(sessions)
+      .where(and(eq(sessions.userId, userId), sql`${sessions.expiresAt} >= now()`))
+      .orderBy(desc(sessions.createdAt))
+    return rows.map((row) => ({
+      tokenHash: row.tokenHash,
+      userId: row.userId,
+      expiresAt: row.expiresAt.toISOString(),
+      ip: row.ip,
+      userAgent: row.userAgent,
+      lastSeenAt: row.lastSeenAt.toISOString(),
+      createdAt: row.createdAt.toISOString(),
+    }))
+  }
+
+  async deleteOtherSessions(userId: string, keepTokenHash: string) {
+    await getDb()
+      .delete(sessions)
+      .where(and(eq(sessions.userId, userId), sql`${sessions.tokenHash} != ${keepTokenHash}`))
+  }
+
+  async touchSession(tokenHash: string) {
+    await getDb()
+      .update(sessions)
+      .set({ lastSeenAt: new Date() })
+      .where(eq(sessions.tokenHash, tokenHash))
+  }
+
+  async getRateLimit(key: string) {
+    const [row] = await getDb()
+      .select()
+      .from(rateLimits)
+      .where(eq(rateLimits.key, key))
+      .limit(1)
+    if (!row) return null
+    return { count: row.count, windowStart: row.windowStart.toISOString() }
+  }
+
+  async upsertRateLimit(key: string, count: number, windowStart: string) {
+    await getDb()
+      .insert(rateLimits)
+      .values({ key, count, windowStart: new Date(windowStart), updatedAt: new Date() })
+      .onConflictDoUpdate({
+        target: rateLimits.key,
+        set: { count, windowStart: new Date(windowStart), updatedAt: new Date() },
+      })
   }
 
   async createAuthToken(token: AuthTokenRecord) {

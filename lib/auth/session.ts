@@ -6,20 +6,31 @@
 import 'server-only'
 
 import { walletStore, type UserRecord } from '@/lib/wallet/store'
-import { cookies } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 import { cache } from 'react'
 import { generateSessionToken, hashSessionToken } from './crypto'
 
 export const SESSION_COOKIE = 'masanawa_session'
 const SESSION_DAYS = 30
 
+async function getRequestInfo(): Promise<{ ip: string | null; userAgent: string | null }> {
+  const headerList = await headers()
+  const forwarded = headerList.get('x-forwarded-for')
+  const ip = forwarded ? forwarded.split(',')[0].trim() : null
+  const userAgent = headerList.get('user-agent') ?? null
+  return { ip, userAgent }
+}
+
 export async function createSessionForUser(userId: string): Promise<void> {
   const token = generateSessionToken()
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 86400000)
+  const { ip, userAgent } = await getRequestInfo()
   await walletStore.createSession({
     tokenHash: hashSessionToken(token),
     userId,
     expiresAt: expiresAt.toISOString(),
+    ip,
+    userAgent,
   })
   const cookieStore = await cookies()
   cookieStore.set(SESSION_COOKIE, token, {
@@ -38,6 +49,31 @@ export async function destroySession(): Promise<void> {
     await walletStore.deleteSession(hashSessionToken(token))
   }
   cookieStore.delete(SESSION_COOKIE)
+}
+
+/** Destroy all sessions for the current user except the one making the request. */
+export async function destroyOtherSessions(): Promise<void> {
+  const cookieStore = await cookies()
+  const token = cookieStore.get(SESSION_COOKIE)?.value
+  if (!token) return
+  const user = await getCurrentUser()
+  if (!user) return
+  await walletStore.deleteOtherSessions(user.id, hashSessionToken(token))
+}
+
+/** List all active sessions for the current user. */
+export async function listCurrentUserSessions() {
+  const user = await getCurrentUser()
+  if (!user) return []
+  return walletStore.listSessions(user.id)
+}
+
+/** Get the current session's token hash (for session management UI). */
+export async function getCurrentSessionTokenHash(): Promise<string | null> {
+  const cookieStore = await cookies()
+  const token = cookieStore.get(SESSION_COOKIE)?.value
+  if (!token) return null
+  return hashSessionToken(token)
 }
 
 /** The signed-in user for this request, or null. Deduped per request. */

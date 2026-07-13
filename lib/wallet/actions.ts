@@ -89,7 +89,7 @@ export async function sendMoneyAction(input: {
   const pinCheck = await verifyPin(input.pin)
   if (!pinCheck.ok) return fail(pinCheck.error ?? 'PIN verification failed.')
 
-  if (!rateLimit(`send:${user.id}`, 20, 60 * 60_000)) {
+  if (!(await rateLimit(`send:${user.id}`, 20, 60 * 60_000))) {
     return fail('Too many transfers in the last hour. Please slow down.')
   }
 
@@ -179,7 +179,7 @@ export async function tradeAction(input: {
   const pinCheck = await verifyPin(input.pin)
   if (!pinCheck.ok) return fail(pinCheck.error ?? 'PIN verification failed.')
 
-  if (!rateLimit(`trade:${user.id}`, 20, 60 * 60_000)) {
+  if (!(await rateLimit(`trade:${user.id}`, 20, 60 * 60_000))) {
     return fail('Too many trades in the last hour. Please slow down.')
   }
 
@@ -275,7 +275,7 @@ export async function withdrawBankAction(input: {
   const pinCheck = await verifyPin(input.pin)
   if (!pinCheck.ok) return fail(pinCheck.error ?? 'PIN verification failed.')
 
-  if (!rateLimit(`withdraw:${user.id}`, 10, 60 * 60_000)) {
+  if (!(await rateLimit(`withdraw:${user.id}`, 10, 60 * 60_000))) {
     return fail('Too many withdrawals in the last hour. Please slow down.')
   }
 
@@ -363,7 +363,7 @@ export async function withdrawCryptoAction(input: {
   const pinCheck = await verifyPin(input.pin)
   if (!pinCheck.ok) return fail(pinCheck.error ?? 'PIN verification failed.')
 
-  if (!rateLimit(`withdraw:${user.id}`, 10, 60 * 60_000)) {
+  if (!(await rateLimit(`withdraw:${user.id}`, 10, 60 * 60_000))) {
     return fail('Too many withdrawals in the last hour. Please slow down.')
   }
 

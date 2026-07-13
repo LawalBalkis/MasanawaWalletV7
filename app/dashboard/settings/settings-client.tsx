@@ -6,6 +6,12 @@ import { PinDialog } from '@/components/wallet/pin-dialog'
 import { TierUpgradeDialog, type TierUpgradeSubmit } from '@/components/wallet/tier-upgrade-dialog'
 import { useToast } from '@/components/wallet/toast'
 import {
+  cancelEmailChangeAction,
+  requestEmailChangeAction,
+  verifyEmailChangeAction,
+  type AuthFormState,
+} from '@/lib/auth/actions'
+import {
   changePinAction,
   removeBeneficiaryAction,
   setPreferenceAction,
@@ -16,7 +22,9 @@ import type { Beneficiary } from '@/lib/wallet/assets'
 import { VERIFICATION_TIERS, formatLimit, type TierId } from '@/lib/wallet/tiers'
 import { useRouter } from 'next/navigation'
 import { BadgeCheck, Landmark, Trash2 } from 'lucide-react'
-import { useState, useTransition } from 'react'
+import { useActionState, useState, useTransition } from 'react'
+import Link from 'next/link'
+import { MonitorSmartphone } from 'lucide-react'
 
 export interface SettingsUser {
   name: string
@@ -29,6 +37,7 @@ export interface SettingsUser {
   notifyProduct: boolean
   twoFactor: boolean
   biometric: boolean
+  pendingEmail: string | null
 }
 
 function Section({
@@ -202,16 +211,32 @@ export function SettingsClient({
 
   // Profile
   const [name, setName] = useState(user.name)
-  const [email, setEmail] = useState(user.email)
+  const [email] = useState(user.email)
   const [phone, setPhone] = useState(user.phone)
   const [savingProfile, setSavingProfile] = useState(false)
 
   // Security & notification prefs
   const [twoFactor, setTwoFactor] = useState(user.twoFactor)
-  const [biometrics, setBiometrics] = useState(user.biometric)
   const [txAlerts, setTxAlerts] = useState(user.notifyTransactions)
   const [priceAlerts, setPriceAlerts] = useState(user.notifyPrices)
   const [productUpdates, setProductUpdates] = useState(user.notifyProduct)
+
+  // Email change (Phase A1)
+  const [emailChangeState, emailChangeAction, emailChangePending] = useActionState(
+    requestEmailChangeAction,
+    {} as AuthFormState,
+  )
+  const [verifyEmailState, verifyEmailAction, verifyEmailPending] = useActionState(
+    verifyEmailChangeAction,
+    {} as AuthFormState,
+  )
+  const [cancelEmailState, cancelEmailAction, cancelEmailPending] = useActionState(
+    cancelEmailChangeAction,
+    {} as AuthFormState,
+  )
+  const [newEmail, setNewEmail] = useState('')
+  const [verifyCode, setVerifyCode] = useState('')
+  const hasPendingEmail = !!user.pendingEmail
 
   // PIN change
   const [pinStep, setPinStep] = useState<PinStep>(null)
@@ -234,7 +259,7 @@ export function SettingsClient({
   }
 
   function togglePref(
-    key: 'notifyTransactions' | 'notifyPrices' | 'notifyProduct' | 'twoFactor' | 'biometric',
+    key: 'notifyTransactions' | 'notifyPrices' | 'notifyProduct' | 'twoFactor',
     value: boolean,
     apply: (v: boolean) => void,
     messages?: { on?: [string, string]; off?: [string, string] },
@@ -338,8 +363,9 @@ export function SettingsClient({
                 id="settings-email"
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className={inputClass}
+                readOnly
+                aria-readonly="true"
+                className={`${inputClass} bg-secondary/50 font-mono text-muted-foreground`}
               />
             </div>
             <div className="flex flex-col gap-2">
@@ -380,13 +406,20 @@ export function SettingsClient({
               })
             }
           />
-          <Toggle
-            id="settings-biometrics"
-            label="Biometric unlock"
-            detail="Use fingerprint or face unlock on supported devices."
-            checked={biometrics}
-            onChange={(v) => togglePref('biometric', v, setBiometrics)}
-          />
+          <div className="flex items-center justify-between gap-4 border-t border-border pt-5">
+            <div>
+              <p className="text-sm font-medium text-foreground">Active sessions</p>
+              <p className="text-xs text-muted-foreground">
+                See devices signed in to your account and revoke others.
+              </p>
+            </div>
+            <Link href="/dashboard/sessions">
+              <Button variant="secondary" size="sm">
+                <MonitorSmartphone className="mr-1.5 size-4" aria-hidden="true" />
+                Manage sessions
+              </Button>
+            </Link>
+          </div>
           <div className="flex items-center justify-between gap-4 border-t border-border pt-5">
             <div>
               <p className="text-sm font-medium text-foreground">Transaction PIN</p>
@@ -399,6 +432,94 @@ export function SettingsClient({
             </Button>
           </div>
         </div>
+      </Section>
+
+      <Section
+        title="Email address"
+        description="Changing your email requires verification of the new address."
+      >
+        {hasPendingEmail ? (
+          <div className="flex flex-col gap-4">
+            <div className="rounded-lg border border-warning/20 bg-warning/5 px-4 py-3 text-sm">
+              <p className="font-medium text-foreground">
+                Pending change to {user.pendingEmail}
+              </p>
+              <p className="mt-1 text-muted-foreground">
+                Enter the 6-digit code sent to your new email to complete the change.
+              </p>
+            </div>
+            <form className="flex flex-col gap-3" action={verifyEmailAction}>
+              <input
+                type="text"
+                name="code"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+                placeholder="123456"
+                value={verifyCode}
+                onChange={(e) => setVerifyCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                className={`${inputClass} text-center font-mono text-lg tracking-[0.5em]`}
+                required
+              />
+              {verifyEmailState.error && (
+                <p className="text-sm text-destructive" role="alert">
+                  {verifyEmailState.error}
+                </p>
+              )}
+              {verifyEmailState.success && (
+                <p className="text-sm text-success" role="status">
+                  {verifyEmailState.success}
+                </p>
+              )}
+              <Button type="submit" disabled={verifyEmailPending || !/^\d{6}$/.test(verifyCode)}>
+                {verifyEmailPending ? 'Verifying…' : 'Verify new email'}
+              </Button>
+            </form>
+            <form action={cancelEmailAction}>
+              {cancelEmailState.success && (
+                <p className="text-sm text-success" role="status">
+                  {cancelEmailState.success}
+                </p>
+              )}
+              <Button type="submit" variant="ghost" size="sm" disabled={cancelEmailPending}>
+                {cancelEmailPending ? 'Cancelling…' : 'Cancel email change'}
+              </Button>
+            </form>
+          </div>
+        ) : (
+          <form className="flex flex-col gap-4" action={emailChangeAction}>
+            <div className="flex flex-col gap-2">
+              <label htmlFor="settings-new-email" className="text-sm font-medium text-foreground">
+                New email address
+              </label>
+              <input
+                id="settings-new-email"
+                name="newEmail"
+                type="email"
+                value={newEmail}
+                onChange={(e) => setNewEmail(e.target.value)}
+                placeholder="new@email.com"
+                className={inputClass}
+                required
+              />
+            </div>
+            {emailChangeState.error && (
+              <p className="text-sm text-destructive" role="alert">
+                {emailChangeState.error}
+              </p>
+            )}
+            {emailChangeState.success && (
+              <p className="text-sm text-success" role="status">
+                {emailChangeState.success}
+              </p>
+            )}
+            <div>
+              <Button type="submit" disabled={emailChangePending || !newEmail}>
+                {emailChangePending ? 'Sending code…' : 'Send verification code'}
+              </Button>
+            </div>
+          </form>
+        )}
       </Section>
 
       <Section title="Notifications" description="Choose what Masanawa alerts you about.">

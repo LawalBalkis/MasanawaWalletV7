@@ -50,6 +50,7 @@ export interface UserRecord {
   notifyProduct: boolean
   twoFactor: boolean
   biometric: boolean
+  pendingEmail: string | null
   createdAt: string
 }
 
@@ -83,6 +84,7 @@ export type UserPatch = Partial<
     | 'notifyProduct'
     | 'twoFactor'
     | 'biometric'
+    | 'pendingEmail'
   >
 >
 
@@ -91,6 +93,14 @@ export interface SessionRecord {
   userId: string
   /** ISO timestamp. */
   expiresAt: string
+  /** IP address of the client that created this session. */
+  ip?: string | null
+  /** User-Agent string of the client that created this session. */
+  userAgent?: string | null
+  /** ISO timestamp — last time this session was seen active. */
+  lastSeenAt?: string
+  /** ISO timestamp — when the session was created. */
+  createdAt?: string
 }
 
 /** A ledger row: a WalletTx owned by a user. */
@@ -131,7 +141,7 @@ export interface FundingCredit {
   note?: string
 }
 
-export type AuthTokenKind = 'email_verify' | 'password_reset'
+export type AuthTokenKind = 'email_verify' | 'password_reset' | 'email_change'
 
 /**
  * A short-lived, single-use auth token (email OTP or password reset). Only the
@@ -248,6 +258,13 @@ export interface WalletStore {
   createSession(session: SessionRecord): Promise<void>
   getSession(tokenHash: string): Promise<SessionRecord | null>
   deleteSession(tokenHash: string): Promise<void>
+  listSessions(userId: string): Promise<SessionRecord[]>
+  deleteOtherSessions(userId: string, keepTokenHash: string): Promise<void>
+  touchSession(tokenHash: string): Promise<void>
+
+  // Rate limiting (Phase A5 — Postgres-backed)
+  getRateLimit(key: string): Promise<{ count: number; windowStart: string } | null>
+  upsertRateLimit(key: string, count: number, windowStart: string): Promise<void>
 
   // Auth tokens (email OTP + password reset)
   createAuthToken(token: AuthTokenRecord): Promise<void>
@@ -369,6 +386,7 @@ function seedState(): MemoryState {
     notifyProduct: true,
     twoFactor: false,
     biometric: false,
+    pendingEmail: null,
     createdAt: seededAt,
   })
 
@@ -470,6 +488,7 @@ class InMemoryWalletStore implements WalletStore {
       notifyProduct: true,
       twoFactor: false,
       biometric: false,
+      pendingEmail: null,
       createdAt: new Date().toISOString(),
     }
     s.users.set(record.id, record)
@@ -527,6 +546,34 @@ class InMemoryWalletStore implements WalletStore {
 
   async deleteSession(tokenHash: string) {
     getState().sessions.delete(tokenHash)
+  }
+
+  async listSessions(userId: string) {
+    const result: SessionRecord[] = []
+    for (const s of getState().sessions.values()) {
+      if (s.userId === userId && !(new Date(s.expiresAt) < new Date())) result.push(s)
+    }
+    return result.sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''))
+  }
+
+  async deleteOtherSessions(userId: string, keepTokenHash: string) {
+    const sessions = getState().sessions
+    for (const [hash, s] of sessions) {
+      if (s.userId === userId && hash !== keepTokenHash) sessions.delete(hash)
+    }
+  }
+
+  async touchSession(tokenHash: string) {
+    const s = getState().sessions.get(tokenHash)
+    if (s) s.lastSeenAt = new Date().toISOString()
+  }
+
+  async getRateLimit(key: string) {
+    return null
+  }
+
+  async upsertRateLimit(_key: string, _count: number, _windowStart: string) {
+    // In-memory store doesn't persist rate limits
   }
 
   async createAuthToken(token: AuthTokenRecord) {

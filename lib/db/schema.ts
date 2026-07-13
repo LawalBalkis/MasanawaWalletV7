@@ -51,6 +51,8 @@ export const users = pgTable(
     referralWithdrawn: numeric('referral_withdrawn', { precision: 20, scale: 2, mode: 'number' })
       .notNull()
       .default(0),
+    /** Pending email address awaiting verification before replacing `email`. */
+    pendingEmail: text('pending_email'),
     // Preferences.
     notifyTransactions: boolean('notify_transactions').notNull().default(true),
     notifyPrices: boolean('notify_prices').notNull().default(false),
@@ -72,6 +74,12 @@ export const sessions = pgTable(
       .references(() => users.id, { onDelete: 'cascade' }),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    /** IP address of the client that created this session. */
+    ip: text('ip'),
+    /** User-Agent string of the client that created this session. */
+    userAgent: text('user_agent'),
+    /** Last time this session was seen active. */
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index('sessions_user_id_idx').on(t.userId)],
 )
@@ -240,3 +248,14 @@ export const notifications = pgTable(
   },
   (t) => [index('notifications_user_id_idx').on(t.userId)],
 )
+
+/**
+ * Postgres-backed rate limiting (Phase A5). Replaces the in-memory sliding-window
+ * limiter so limits are shared across server instances.
+ */
+export const rateLimits = pgTable('rate_limits', {
+  key: text('key').primaryKey(),
+  count: integer('count').notNull().default(0),
+  windowStart: timestamp('window_start', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})
