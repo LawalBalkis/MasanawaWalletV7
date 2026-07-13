@@ -1,7 +1,7 @@
 'use client'
 
 import { Logo } from '@/components/site/logo'
-import { DEMO_NOTIFICATIONS } from '@/lib/wallet/demo-data'
+import { signOutAction } from '@/lib/auth/actions'
 import {
   ArrowDownToLine,
   ArrowLeftRight,
@@ -31,25 +31,29 @@ const NAV_ITEMS = [
   { href: '/dashboard/settings', label: 'Settings', icon: Settings },
 ]
 
-const UNREAD_COUNT = DEMO_NOTIFICATIONS.filter((n) => !n.read).length
-
-function NotificationBell({ onNavigate }: { onNavigate?: () => void }) {
+function NotificationBell({
+  unreadCount,
+  onNavigate,
+}: {
+  unreadCount: number
+  onNavigate?: () => void
+}) {
   return (
     <Link
       href="/dashboard/notifications"
       onClick={onNavigate}
       className="relative flex size-9 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:text-foreground"
       aria-label={
-        UNREAD_COUNT > 0 ? `Notifications, ${UNREAD_COUNT} unread` : 'Notifications'
+        unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'
       }
     >
       <Bell className="size-4" aria-hidden="true" />
-      {UNREAD_COUNT > 0 && (
+      {unreadCount > 0 && (
         <span
           className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-primary font-mono text-[10px] font-semibold text-primary-foreground"
           aria-hidden="true"
         >
-          {UNREAD_COUNT}
+          {unreadCount > 9 ? '9+' : unreadCount}
         </span>
       )}
     </Link>
@@ -59,10 +63,12 @@ function NotificationBell({ onNavigate }: { onNavigate?: () => void }) {
 export function AppShell({
   username,
   name,
+  unreadCount = 0,
   children,
 }: {
   username: string
   name: string
+  unreadCount?: number
   children: React.ReactNode
 }) {
   const pathname = usePathname()
@@ -100,13 +106,15 @@ export function AppShell({
           <p className="truncate text-sm font-medium text-foreground">{name}</p>
           <p className="font-mono text-xs text-primary">@{username}</p>
         </div>
-        <Link
-          href="/auth/sign-in"
-          className="flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-          aria-label="Sign out"
-        >
-          <LogOut className="size-4" aria-hidden="true" />
-        </Link>
+        <form action={signOutAction}>
+          <button
+            type="submit"
+            className="flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+            aria-label="Sign out"
+          >
+            <LogOut className="size-4" aria-hidden="true" />
+          </button>
+        </form>
       </div>
     </div>
   )
@@ -119,7 +127,7 @@ export function AppShell({
           <Link href="/" aria-label="Masanawa home">
             <Logo />
           </Link>
-          <NotificationBell />
+          <NotificationBell unreadCount={unreadCount} />
         </div>
         {nav}
         <div className="mt-auto">{userCard}</div>
@@ -132,7 +140,7 @@ export function AppShell({
             <Logo />
           </Link>
           <div className="flex items-center gap-2">
-            <NotificationBell onNavigate={() => setMenuOpen(false)} />
+            <NotificationBell unreadCount={unreadCount} onNavigate={() => setMenuOpen(false)} />
             <button
               type="button"
               onClick={() => setMenuOpen((v) => !v)}

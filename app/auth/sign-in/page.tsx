@@ -3,25 +3,14 @@
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { signInAction, type AuthFormState } from '@/lib/auth/actions'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useActionState } from 'react'
+
+const initialState: AuthFormState = {}
 
 export default function SignInPage() {
-  const router = useRouter()
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [busy, setBusy] = useState(false)
-
-  const valid = /\S+@\S+\.\S+/.test(email) && password.length >= 8
-
-  function submit(e: React.FormEvent) {
-    e.preventDefault()
-    if (!valid || busy) return
-    setBusy(true)
-    // Demo auth: replaced with real authentication in the wiring step.
-    setTimeout(() => router.push('/dashboard'), 700)
-  }
+  const [state, formAction, pending] = useActionState(signInAction, initialState)
 
   return (
     <div className="rounded-2xl border border-border bg-card p-6 sm:p-8">
@@ -34,16 +23,15 @@ export default function SignInPage() {
         </p>
       </header>
 
-      <form className="mt-6 flex flex-col gap-5" onSubmit={submit}>
+      <form className="mt-6 flex flex-col gap-5" action={formAction}>
         <div className="flex flex-col gap-2">
           <Label htmlFor="signin-email">Email address</Label>
           <Input
             id="signin-email"
+            name="email"
             type="email"
             autoComplete="email"
             placeholder="you@example.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
             required
           />
         </div>
@@ -60,18 +48,23 @@ export default function SignInPage() {
           </div>
           <Input
             id="signin-password"
+            name="password"
             type="password"
             autoComplete="current-password"
             placeholder="••••••••"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
             required
             minLength={8}
           />
         </div>
 
-        <Button type="submit" size="lg" disabled={!valid || busy}>
-          {busy ? 'Signing in…' : 'Sign in'}
+        {state.error && (
+          <p className="text-sm text-destructive" role="alert">
+            {state.error}
+          </p>
+        )}
+
+        <Button type="submit" size="lg" disabled={pending}>
+          {pending ? 'Signing in…' : 'Sign in'}
         </Button>
       </form>
 
@@ -80,6 +73,10 @@ export default function SignInPage() {
         <Link href="/auth/sign-up" className="font-medium text-primary hover:underline">
           Create an account
         </Link>
+      </p>
+
+      <p className="mt-4 rounded-lg bg-secondary px-3 py-2 text-center text-xs text-muted-foreground">
+        {'Demo account: demo@masanawa.app · password123 · PIN 1234'}
       </p>
     </div>
   )
