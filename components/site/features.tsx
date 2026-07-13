@@ -3,7 +3,7 @@ import { PRODUCT_FEATURES } from './data'
 export function Features() {
   return (
     <section id="features" className="mx-auto max-w-7xl scroll-mt-20 px-4 py-16 sm:px-8 lg:px-12 lg:py-20">
-      <div className="flex flex-col gap-6 border-b border-border pb-8 lg:flex-row lg:items-end lg:justify-between">
+      <div className="flex flex-col items-center gap-6 border-b border-border pb-8 text-center lg:flex-row lg:items-end lg:justify-between lg:text-left">
         <div className="max-w-2xl">
           <span className="font-mono text-xs uppercase tracking-[0.2em] text-primary">Product / Features</span>
           <h2 className="mt-4 text-balance text-3xl font-semibold tracking-[-0.03em] text-foreground sm:text-4xl">

@@ -44,35 +44,37 @@ const COLUMNS = [
 export function Footer() {
   return (
     <footer className="border-t border-border bg-card">
-      <div className="mx-auto max-w-7xl px-4 py-16 sm:px-8 lg:px-12">
-        <div className="grid gap-10 lg:grid-cols-[1.5fr_repeat(4,1fr)]">
-          <div className="max-w-xs">
+      <div className="mx-auto max-w-7xl px-4 py-14 sm:px-8 sm:py-16 lg:px-12">
+        <div className="grid gap-10 lg:grid-cols-[1.5fr_repeat(4,1fr)] lg:gap-12">
+          <div className="flex flex-col items-center text-center sm:items-start sm:text-left">
             <Logo />
-            <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
+            <p className="mt-4 max-w-xs text-sm leading-relaxed text-muted-foreground">
               Buy, sell, and send crypto in Nigeria. Fund with naira, pay any @username, and
               withdraw to your bank.
             </p>
           </div>
-          {COLUMNS.map((col) => (
-            <div key={col.title}>
-              <h3 className="text-sm font-semibold text-foreground">{col.title}</h3>
-              <ul className="mt-4 flex flex-col gap-3">
-                {col.links.map((link) => (
-                  <li key={link.label}>
-                    <Link
-                      href={link.href}
-                      className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-                    >
-                      {link.label}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
+          <div className="grid grid-cols-2 gap-x-6 gap-y-10 text-center sm:grid-cols-4 sm:text-left lg:col-span-4 lg:contents">
+            {COLUMNS.map((col) => (
+              <div key={col.title}>
+                <h3 className="text-sm font-semibold text-foreground">{col.title}</h3>
+                <ul className="mt-4 flex flex-col gap-3">
+                  {col.links.map((link) => (
+                    <li key={link.label}>
+                      <Link
+                        href={link.href}
+                        className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+                      >
+                        {link.label}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
         </div>
 
-        <div className="mt-14 flex flex-col items-start justify-between gap-4 border-t border-border pt-8 sm:flex-row sm:items-center">
+        <div className="mt-14 flex flex-col items-center gap-4 border-t border-border pt-8 text-center sm:flex-row sm:items-center sm:justify-between sm:text-left">
           <p className="text-sm text-muted-foreground">
             © {new Date().getFullYear()} {BRAND}. All rights reserved.
           </p>

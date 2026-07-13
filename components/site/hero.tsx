@@ -19,7 +19,7 @@ export function Hero() {
       </div>
 
       <div className="mx-auto grid max-w-7xl items-center gap-10 px-4 py-12 sm:px-8 lg:grid-cols-[1.02fr_0.98fr] lg:gap-10 lg:px-12 lg:py-14 xl:py-16">
-        <div className="flex flex-col justify-center">
+        <div className="flex flex-col items-center justify-center text-center lg:items-start lg:text-left">
           <div className="inline-flex w-fit items-center gap-2 rounded-full border border-primary/30 bg-accent px-3 py-1.5 text-xs font-medium text-accent-foreground">
             <VerifiedIcon className="size-4" />
             {VERIFIED_LABEL.text}
@@ -45,7 +45,7 @@ export function Hero() {
               See how it works <ChevronRight className="size-4" />
             </a>
           </div>
-          <ul className="mt-9 flex flex-wrap gap-x-5 gap-y-2.5 border-t border-border pt-6">
+          <ul className="mt-9 flex w-full flex-wrap justify-center gap-x-5 gap-y-2.5 border-t border-border pt-6 lg:justify-start">
             {TRUST_POINTS.map((point) => (
               <li key={point} className="flex items-center gap-2 text-sm text-muted-foreground">
                 <BadgeCheck className="size-4 shrink-0 text-primary" />
@@ -132,7 +132,7 @@ export function Hero() {
 
       {/* stat strip */}
       <div className="border-t border-border bg-secondary/40">
-        <dl className="mx-auto grid max-w-7xl grid-cols-2 divide-x divide-border border-x border-border lg:grid-cols-4">
+        <dl className="mx-auto grid max-w-7xl grid-cols-2 divide-x divide-y divide-border border-x border-border lg:grid-cols-4 lg:divide-y-0">
           {HERO_STATS.map((stat) => (
             <div key={stat.label} className="flex flex-col gap-1 px-4 py-5 sm:px-8 lg:px-6">
               <dt className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">

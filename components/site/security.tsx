@@ -4,7 +4,7 @@ export function Security() {
   return (
     <section id="security" className="scroll-mt-20 border-b border-border">
       <div className="mx-auto max-w-7xl px-4 py-16 sm:px-8 lg:px-12 lg:py-20">
-        <div className="flex flex-col gap-4 border-b border-border pb-8 lg:flex-row lg:items-end lg:justify-between">
+        <div className="flex flex-col items-center gap-4 border-b border-border pb-8 text-center lg:flex-row lg:items-end lg:justify-between lg:text-left">
           <div className="max-w-2xl">
             <span className="font-mono text-xs uppercase tracking-[0.2em] text-primary">System / Account safety</span>
             <h2 className="mt-4 text-balance text-3xl font-semibold tracking-[-0.03em] text-foreground sm:text-4xl">

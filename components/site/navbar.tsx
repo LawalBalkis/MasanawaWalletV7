@@ -22,17 +22,20 @@ export function Navbar() {
         <div className="hidden items-center gap-7 lg:flex">
           {LINKS.map((link) => <a key={link.href} href={link.href} className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">{link.label}</a>)}
         </div>
-        <div className="hidden items-center gap-3 md:flex">
-          <Link href="/auth/sign-in" className="px-3 py-2 text-sm font-medium text-foreground">Sign in</Link>
-          <Link href="/auth/sign-up" className="rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:opacity-90">Open Masanawa</Link>
+        <div className="hidden items-center gap-3 lg:flex">
+          <Link href="/auth/sign-in" className="px-3 py-2 text-sm font-medium text-foreground transition-colors hover:text-primary">Sign in</Link>
+          <Link href="/auth/sign-up" className="rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90">Open Masanawa</Link>
         </div>
-        <button type="button" className="inline-flex size-10 items-center justify-center rounded-lg hover:bg-secondary md:hidden" onClick={() => setOpen((value) => !value)} aria-label={open ? 'Close menu' : 'Open menu'} aria-expanded={open}>
+        <button type="button" className="inline-flex size-10 items-center justify-center rounded-lg text-foreground transition-colors hover:bg-secondary lg:hidden" onClick={() => setOpen((value) => !value)} aria-label={open ? 'Close menu' : 'Open menu'} aria-expanded={open}>
           {open ? <X className="size-5" /> : <Menu className="size-5" />}
         </button>
       </nav>
-      {open && <div className="border-t border-border bg-background md:hidden"><div className="flex flex-col gap-1 px-4 py-4">
-        {LINKS.map((link) => <a key={link.href} href={link.href} onClick={() => setOpen(false)} className="rounded-lg px-3 py-3 text-sm font-medium hover:bg-secondary">{link.label}</a>)}
-        <Link href="/auth/sign-up" onClick={() => setOpen(false)} className="mt-2 rounded-lg bg-primary px-3 py-3 text-center text-sm font-semibold text-primary-foreground">Open Masanawa</Link>
+      {open && <div className="border-t border-border bg-background lg:hidden"><div className="mx-auto flex max-w-7xl flex-col gap-1 px-4 py-4 sm:px-8">
+        {LINKS.map((link) => <a key={link.href} href={link.href} onClick={() => setOpen(false)} className="rounded-lg px-3 py-3 text-sm font-medium text-foreground transition-colors hover:bg-secondary">{link.label}</a>)}
+        <div className="mt-2 flex flex-col gap-2 border-t border-border pt-3 sm:flex-row">
+          <Link href="/auth/sign-in" onClick={() => setOpen(false)} className="rounded-lg border border-border px-3 py-3 text-center text-sm font-semibold text-foreground transition-colors hover:bg-secondary sm:flex-1">Sign in</Link>
+          <Link href="/auth/sign-up" onClick={() => setOpen(false)} className="rounded-lg bg-primary px-3 py-3 text-center text-sm font-semibold text-primary-foreground sm:flex-1">Open Masanawa</Link>
+        </div>
       </div></div>}
     </header>
   )
