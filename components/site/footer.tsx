@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { Logo } from './logo'
 import { BRAND } from './data'
 
@@ -5,37 +6,37 @@ const COLUMNS = [
   {
     title: 'Product',
     links: [
-      { label: 'Buy & sell', href: '#features' },
-      { label: 'Send by username', href: '#flow' },
-      { label: 'NGN account', href: '#account' },
-      { label: 'Get started', href: '#get-started' },
+      { label: 'Buy & sell', href: '/#features' },
+      { label: 'Send by username', href: '/#flow' },
+      { label: 'NGN account', href: '/#account' },
+      { label: 'Get started', href: '/#get-started' },
     ],
   },
   {
     title: 'Company',
     links: [
-      { label: 'About', href: '#' },
-      { label: 'Blog', href: '#' },
-      { label: 'Careers', href: '#' },
-      { label: 'Press', href: '#' },
+      { label: 'About', href: '/about' },
+      { label: 'Blog', href: '/blog' },
+      { label: 'Careers', href: '/careers' },
+      { label: 'Press', href: '/press' },
     ],
   },
   {
     title: 'Resources',
     links: [
-      { label: 'Help center', href: '#' },
-      { label: 'FAQ', href: '#faq' },
-      { label: 'Status', href: '#' },
-      { label: 'Contact', href: '#' },
+      { label: 'Help center', href: '/help' },
+      { label: 'FAQ', href: '/#faq' },
+      { label: 'Status', href: '/status' },
+      { label: 'Contact', href: '/contact' },
     ],
   },
   {
     title: 'Legal',
     links: [
-      { label: 'Privacy', href: '#' },
-      { label: 'Terms', href: '#' },
-      { label: 'Disclosures', href: '#' },
-      { label: 'Cookies', href: '#' },
+      { label: 'Privacy', href: '/privacy' },
+      { label: 'Terms', href: '/terms' },
+      { label: 'Disclosures', href: '/disclosures' },
+      { label: 'Cookies', href: '/cookies' },
     ],
   },
 ]
@@ -58,12 +59,12 @@ export function Footer() {
               <ul className="mt-4 flex flex-col gap-3">
                 {col.links.map((link) => (
                   <li key={link.label}>
-                    <a
+                    <Link
                       href={link.href}
                       className="text-sm text-muted-foreground transition-colors hover:text-foreground"
                     >
                       {link.label}
-                    </a>
+                    </Link>
                   </li>
                 ))}
               </ul>
