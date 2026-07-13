@@ -7,6 +7,7 @@ import {
   ArrowLeftRight,
   Banknote,
   Bell,
+  Gift,
   History,
   LayoutDashboard,
   LogOut,
@@ -28,6 +29,7 @@ const NAV_ITEMS = [
   { href: '/dashboard/send', label: 'Send', icon: Send },
   { href: '/dashboard/receive', label: 'Receive', icon: QrCode },
   { href: '/dashboard/withdraw', label: 'Withdraw', icon: ArrowDownToLine },
+  { href: '/dashboard/referrals', label: 'Refer & Earn', icon: Gift },
   { href: '/dashboard/activity', label: 'Activity', icon: History },
   { href: '/dashboard/settings', label: 'Settings', icon: Settings },
 ]

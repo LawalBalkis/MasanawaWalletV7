@@ -4,6 +4,7 @@
 import { getBillstackSecretKey, getTransaction } from '@/lib/billstack/client'
 import type { PaymentNotificationPayload } from '@/lib/billstack/types'
 import { verifyWebhookSignature } from '@/lib/billstack/webhook'
+import { maybeQualifyReferral } from '@/lib/wallet/referrals'
 import { walletStore } from '@/lib/wallet/store'
 import { NextResponse } from 'next/server'
 
@@ -120,6 +121,10 @@ export async function POST(request: Request) {
           body: `Your NGN wallet was credited with ₦${amount.toLocaleString('en-NG')} from ${payerName}.`,
         })
       }
+      // If this user was referred, their new cumulative funding may cross the
+      // qualification threshold and earn their referrer a bonus. No-ops once
+      // already qualified or if the user wasn't referred.
+      await maybeQualifyReferral(user.id)
     }
   } catch (err) {
     // Verification call failed — respond non-200 so Billstack retries later.

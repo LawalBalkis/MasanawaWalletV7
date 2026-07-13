@@ -5,6 +5,7 @@
 // All state lives behind the WalletStore boundary — these work identically
 // on the in-memory backend and Postgres.
 // ---------------------------------------------------------------------------
+import { REFERRAL_BONUS_NGN } from '@/lib/wallet/referrals'
 import { billstackReferenceForUser, walletStore } from '@/lib/wallet/store'
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
@@ -97,6 +98,20 @@ export async function signUpAction(
     passwordHash: hashSecret(password),
     billstackRef: billstackReferenceForUser(id),
   })
+
+  // Attribute the sign-up to a referrer if a valid, non-self referral code
+  // (the referrer's @username) was supplied. Failures never block sign-up.
+  const refCode = String(formData.get('ref') ?? '')
+    .trim()
+    .replace(/^@/, '')
+    .toLowerCase()
+  if (refCode && refCode !== username) {
+    const referrer = await walletStore.getUserByUsername(refCode)
+    if (referrer && referrer.id !== id) {
+      await walletStore.recordReferral(referrer.id, id, REFERRAL_BONUS_NGN)
+    }
+  }
+
   await walletStore.addNotification({
     userId: id,
     title: 'Welcome to Masanawa',

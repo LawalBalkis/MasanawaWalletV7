@@ -43,6 +43,8 @@ export interface UserRecord {
   kycAddress: string | null
   kycIdType: string | null
   kycIdNumber: string | null
+  referredBy: string | null
+  referralWithdrawn: number
   notifyTransactions: boolean
   notifyPrices: boolean
   notifyProduct: boolean
@@ -191,6 +193,44 @@ export type NewAuditEntry = {
   detail?: string | null
 }
 
+/** A single referral relationship (one invited user). */
+export interface ReferralRecord {
+  id: string
+  referrerId: string
+  referredUserId: string
+  qualified: boolean
+  bonusNgn: number
+  qualifiedAt: string | null
+  createdAt: string
+}
+
+/** One row in a referrer's list of the people they invited. */
+export interface ReferralListItem {
+  referredUserId: string
+  referredName: string
+  referredUsername: string
+  qualified: boolean
+  bonusNgn: number
+  joinedAt: string
+}
+
+/** Aggregate referral figures for a referrer's dashboard. */
+export interface ReferralStats {
+  /** Total people who signed up with this user's code. */
+  total: number
+  /** How many have crossed the funding threshold. */
+  qualified: number
+  /** Signed up but not yet qualified. */
+  pending: number
+  /** Total NGN earned (qualified × bonus). */
+  earnedNgn: number
+  /** NGN already moved into the wallet. */
+  withdrawnNgn: number
+  /** NGN currently available to withdraw. */
+  availableNgn: number
+  referrals: ReferralListItem[]
+}
+
 // ---------------------------------------------------------------------------
 // The store contract
 // ---------------------------------------------------------------------------
@@ -228,6 +268,13 @@ export interface WalletStore {
   hasFunding(transactionRef: string): Promise<boolean>
   listFundings(accountReference: string): Promise<FundingRecord[]>
   getFundedTotal(accountReference: string): Promise<number>
+
+  // Referrals
+  recordReferral(referrerId: string, referredUserId: string, bonusNgn: number): Promise<void>
+  getReferralForUser(referredUserId: string): Promise<ReferralRecord | null>
+  qualifyReferral(referredUserId: string): Promise<ReferralRecord | null>
+  getReferralStats(referrerId: string): Promise<ReferralStats>
+  withdrawReferralEarnings(userId: string, amount: number, txId: string): Promise<boolean>
 
   // Beneficiaries
   listBeneficiaries(userId: string): Promise<Beneficiary[]>
@@ -273,6 +320,8 @@ interface MemoryState {
   authTokens: Map<string, AuthTokenRecord>
   transactions: LedgerTx[]
   fundings: Map<string, FundingRecord>
+  /** Keyed by referredUserId — one referral per invited user. */
+  referrals: Map<string, ReferralRecord>
   beneficiaries: Map<string, Beneficiary & { userId: string }>
   notifications: Map<string, WalletNotification & { userId: string }>
   auditLog: AdminAuditEntry[]
@@ -286,6 +335,7 @@ function seedState(): MemoryState {
     authTokens: new Map(),
     transactions: [],
     fundings: new Map(),
+    referrals: new Map(),
     beneficiaries: new Map(),
     notifications: new Map(),
     auditLog: [],
@@ -312,6 +362,8 @@ function seedState(): MemoryState {
     kycAddress: null,
     kycIdType: null,
     kycIdNumber: null,
+    referredBy: null,
+    referralWithdrawn: 0,
     notifyTransactions: true,
     notifyPrices: false,
     notifyProduct: true,
@@ -411,6 +463,8 @@ class InMemoryWalletStore implements WalletStore {
       kycAddress: null,
       kycIdType: null,
       kycIdNumber: null,
+      referredBy: null,
+      referralWithdrawn: 0,
       notifyTransactions: true,
       notifyPrices: false,
       notifyProduct: true,
@@ -573,6 +627,97 @@ class InMemoryWalletStore implements WalletStore {
   async getFundedTotal(accountReference: string) {
     const fundings = await this.listFundings(accountReference)
     return fundings.reduce((sum, f) => sum + f.amount, 0)
+  }
+
+  async recordReferral(referrerId: string, referredUserId: string, bonusNgn: number) {
+    const s = getState()
+    if (s.referrals.has(referredUserId)) return
+    s.counter += 1
+    s.referrals.set(referredUserId, {
+      id: `ref_${Date.now()}_${s.counter}`,
+      referrerId,
+      referredUserId,
+      qualified: false,
+      bonusNgn,
+      qualifiedAt: null,
+      createdAt: new Date().toISOString(),
+    })
+    const user = s.users.get(referredUserId)
+    if (user) s.users.set(referredUserId, { ...user, referredBy: referrerId })
+  }
+
+  async getReferralForUser(referredUserId: string) {
+    return getState().referrals.get(referredUserId) ?? null
+  }
+
+  async qualifyReferral(referredUserId: string) {
+    const s = getState()
+    const referral = s.referrals.get(referredUserId)
+    if (!referral || referral.qualified) return null
+    const updated: ReferralRecord = {
+      ...referral,
+      qualified: true,
+      qualifiedAt: new Date().toISOString(),
+    }
+    s.referrals.set(referredUserId, updated)
+    return updated
+  }
+
+  async getReferralStats(referrerId: string): Promise<ReferralStats> {
+    const s = getState()
+    const mine = [...s.referrals.values()]
+      .filter((r) => r.referrerId === referrerId)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    const referrer = s.users.get(referrerId)
+    const withdrawnNgn = referrer?.referralWithdrawn ?? 0
+    const qualified = mine.filter((r) => r.qualified)
+    const earnedNgn = qualified.reduce((sum, r) => sum + r.bonusNgn, 0)
+    const referrals: ReferralListItem[] = mine.map((r) => {
+      const u = s.users.get(r.referredUserId)
+      return {
+        referredUserId: r.referredUserId,
+        referredName: u?.name ?? 'Unknown',
+        referredUsername: u?.username ?? r.referredUserId,
+        qualified: r.qualified,
+        bonusNgn: r.bonusNgn,
+        joinedAt: r.createdAt,
+      }
+    })
+    return {
+      total: mine.length,
+      qualified: qualified.length,
+      pending: mine.length - qualified.length,
+      earnedNgn,
+      withdrawnNgn,
+      availableNgn: Math.max(0, earnedNgn - withdrawnNgn),
+      referrals,
+    }
+  }
+
+  async withdrawReferralEarnings(userId: string, amount: number, txId: string) {
+    const s = getState()
+    const user = s.users.get(userId)
+    if (!user) return false
+    const qualified = [...s.referrals.values()].filter(
+      (r) => r.referrerId === userId && r.qualified,
+    )
+    const earned = qualified.reduce((sum, r) => sum + r.bonusNgn, 0)
+    const available = earned - user.referralWithdrawn
+    if (amount <= 0 || amount > available) return false
+    s.users.set(userId, { ...user, referralWithdrawn: user.referralWithdrawn + amount })
+    s.transactions.push({
+      id: txId,
+      userId,
+      type: 'receive',
+      asset: 'NGN',
+      amount,
+      ngnValue: amount,
+      counterparty: 'Masanawa Referrals',
+      note: 'Referral earnings',
+      status: 'completed',
+      date: new Date().toISOString(),
+    })
+    return true
   }
 
   async listBeneficiaries(userId: string) {
