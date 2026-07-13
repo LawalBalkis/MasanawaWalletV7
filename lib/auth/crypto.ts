@@ -5,7 +5,7 @@
 // ---------------------------------------------------------------------------
 import 'server-only'
 
-import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto'
+import { createHash, randomBytes, randomInt, scryptSync, timingSafeEqual } from 'node:crypto'
 
 const KEY_LENGTH = 64
 const SCRYPT_OPTIONS = { N: 16384, r: 8, p: 1 }
@@ -37,4 +37,20 @@ export function hashSessionToken(token: string): string {
 
 export function generateId(prefix: string): string {
   return `${prefix}_${randomBytes(10).toString('hex')}`
+}
+
+/** SHA-256 hex of an arbitrary secret (used for OTP/reset-token storage). */
+export function sha256Hex(value: string): string {
+  return createHash('sha256').update(value).digest('hex')
+}
+
+/** A cryptographically-random numeric OTP (default 6 digits, zero-padded). */
+export function generateOtp(digits = 6): string {
+  const max = 10 ** digits
+  return String(randomInt(0, max)).padStart(digits, '0')
+}
+
+/** A high-entropy, URL-safe token for password-reset links. */
+export function generateResetToken(): string {
+  return randomBytes(32).toString('base64url')
 }

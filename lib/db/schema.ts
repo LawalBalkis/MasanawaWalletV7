@@ -29,6 +29,8 @@ export const users = pgTable(
     email: text('email').notNull().unique(),
     phone: text('phone'),
     passwordHash: text('password_hash').notNull(),
+    /** Whether the user has confirmed their email via the OTP flow. */
+    emailVerified: boolean('email_verified').notNull().default(false),
     /** Scrypt hash of the 4-digit transaction PIN. Null until set. */
     pinHash: text('pin_hash'),
     /** KYC verification tier: 1, 2 or 3 (see lib/wallet/tiers.ts). */
@@ -123,6 +125,32 @@ export const beneficiaries = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index('beneficiaries_user_id_idx').on(t.userId)],
+)
+
+/**
+ * Short-lived, single-use tokens for email verification (6-digit OTP) and
+ * password resets. Only a SHA-256 hash of the secret is stored — the raw
+ * code/token is delivered to the user by email and never persisted.
+ */
+export const authTokens = pgTable(
+  'auth_tokens',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** 'email_verify' | 'password_reset' */
+    kind: text('kind').notNull(),
+    /** SHA-256 hash of the OTP code or reset token. */
+    secretHash: text('secret_hash').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    attempts: integer('attempts').notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('auth_tokens_user_kind_idx').on(t.userId, t.kind),
+    index('auth_tokens_secret_hash_idx').on(t.secretHash),
+  ],
 )
 
 export const notifications = pgTable(
