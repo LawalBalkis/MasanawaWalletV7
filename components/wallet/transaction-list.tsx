@@ -1,11 +1,10 @@
 import {
-  RECENT_TRANSACTIONS,
-  assetBySymbol,
+  assetMeta,
   formatAsset,
   formatNgn,
   type TxType,
   type WalletTx,
-} from '@/lib/wallet/demo-data'
+} from '@/lib/wallet/assets'
 import {
   ArrowDownLeft,
   ArrowDownToLine,
@@ -46,7 +45,7 @@ function formatDate(iso: string): string {
 
 export function TxRow({ tx }: { tx: WalletTx }) {
   const meta = TX_META[tx.type]
-  const asset = assetBySymbol(tx.asset)
+  const asset = assetMeta(tx.asset)
   const isIn = meta.direction === 'in'
   return (
     <Link
@@ -84,11 +83,7 @@ export function TxRow({ tx }: { tx: WalletTx }) {
   )
 }
 
-export function TransactionList({
-  transactions = RECENT_TRANSACTIONS,
-}: {
-  transactions?: WalletTx[]
-}) {
+export function TransactionList({ transactions }: { transactions: WalletTx[] }) {
   return (
     <section aria-labelledby="tx-heading">
       <div className="mb-3 flex items-center justify-between">
@@ -102,13 +97,21 @@ export function TransactionList({
           View all
         </Link>
       </div>
-      <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
-        {transactions.map((tx) => (
-          <li key={tx.id}>
-            <TxRow tx={tx} />
-          </li>
-        ))}
-      </ul>
+      {transactions.length === 0 ? (
+        <div className="rounded-2xl border border-border bg-card px-6 py-10 text-center">
+          <p className="text-sm text-muted-foreground text-pretty">
+            No activity yet. Fund your wallet to get started.
+          </p>
+        </div>
+      ) : (
+        <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
+          {transactions.map((tx) => (
+            <li key={tx.id}>
+              <TxRow tx={tx} />
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   )
 }

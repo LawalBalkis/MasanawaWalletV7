@@ -1,10 +1,6 @@
-import {
-  WALLET_ASSETS,
-  formatAsset,
-  formatNgn,
-} from '@/lib/wallet/demo-data'
+import { formatAsset, formatNgn, type AssetHolding } from '@/lib/wallet/assets'
 
-export function AssetList() {
+export function AssetList({ holdings }: { holdings: AssetHolding[] }) {
   return (
     <section aria-labelledby="assets-heading">
       <div className="mb-3 flex items-center justify-between">
@@ -13,7 +9,7 @@ export function AssetList() {
         </h2>
       </div>
       <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
-        {WALLET_ASSETS.map((asset) => (
+        {holdings.map((asset) => (
           <li key={asset.symbol} className="flex items-center gap-4 px-4 py-3.5 sm:px-6">
             <span
               className="flex size-10 shrink-0 items-center justify-center rounded-full bg-secondary font-mono text-base text-primary"

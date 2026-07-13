@@ -1,12 +1,8 @@
 import { Button } from '@/components/ui/button'
 import { TX_META, txTitle } from '@/components/wallet/transaction-list'
-import {
-  ALL_TRANSACTIONS,
-  assetBySymbol,
-  formatAsset,
-  formatNgn,
-  txById,
-} from '@/lib/wallet/demo-data'
+import { requireUser } from '@/lib/auth/session'
+import { assetMeta, formatAsset, formatNgn } from '@/lib/wallet/assets'
+import { walletStore } from '@/lib/wallet/store'
 import { ArrowLeft } from 'lucide-react'
 import type { Metadata } from 'next'
 import Link from 'next/link'
@@ -16,21 +12,18 @@ export const metadata: Metadata = {
   title: 'Transaction · Masanawa',
 }
 
-export function generateStaticParams() {
-  return ALL_TRANSACTIONS.map((tx) => ({ id: tx.id }))
-}
-
 export default async function TransactionDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const tx = txById(id)
+  const user = await requireUser()
+  const tx = await walletStore.getTransaction(user.id, id)
   if (!tx) notFound()
 
   const meta = TX_META[tx.type]
-  const asset = assetBySymbol(tx.asset)
+  const asset = assetMeta(tx.asset)
   const isIn = meta.direction === 'in'
 
   const rows: { label: string; value: string }[] = [
@@ -38,6 +31,7 @@ export default async function TransactionDetailPage({
     { label: 'Asset', value: `${asset.name} (${asset.symbol})` },
     ...(tx.counterparty ? [{ label: isIn ? 'From' : 'To', value: tx.counterparty }] : []),
     { label: 'NGN value', value: formatNgn(tx.ngnValue) },
+    ...(tx.feeNgn ? [{ label: 'Fee', value: formatNgn(tx.feeNgn) }] : []),
     ...(tx.note ? [{ label: 'Note', value: tx.note }] : []),
     {
       label: 'Date',

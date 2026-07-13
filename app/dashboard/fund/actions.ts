@@ -1,8 +1,8 @@
 'use server'
 
+import { requireUser } from '@/lib/auth/session'
 import { createVirtualAccount, getVirtualAccount } from '@/lib/billstack/client'
 import { BillstackError, type BillstackIdType } from '@/lib/billstack/types'
-import { billstackReferenceForUser, getCurrentUserId } from '@/lib/wallet/store'
 
 /** Sanitized account details safe to send to the client. Never includes idNumber. */
 export interface VirtualAccountDetails {
@@ -58,7 +58,8 @@ function friendlyBillstackMessage(err: unknown): string {
  * Uses the deterministic reference, so accounts survive redeploys without a DB.
  */
 export async function checkExistingAccount(): Promise<AccountActionResult> {
-  const reference = billstackReferenceForUser(getCurrentUserId())
+  const user = await requireUser()
+  const reference = user.billstackRef
   try {
     const existing = await getVirtualAccount({ reference })
     const account = existing?.data.account?.[0]
@@ -105,7 +106,8 @@ export async function getOrCreateVirtualAccount(
     return { ok: false, fieldErrors, values, error: 'Please fix the highlighted fields.' }
   }
 
-  const reference = billstackReferenceForUser(getCurrentUserId())
+  const user = await requireUser()
+  const reference = user.billstackRef
 
   try {
     // Recover an existing account first — never create duplicates.
