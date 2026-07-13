@@ -7,26 +7,42 @@
 import 'server-only'
 
 import { getDb, schema } from '@/lib/db'
-import { and, desc, eq, sql } from 'drizzle-orm'
+import { and, desc, eq, ilike, or, sql } from 'drizzle-orm'
 import type { AssetSymbol, Beneficiary, TxType, WalletNotification, WalletTx } from './assets'
 import { computeBalances, type Balances } from './ledger'
 import type {
+  AdminAuditEntry,
+  AdminFunding,
+  AdminLedgerTx,
   AuthTokenKind,
   AuthTokenRecord,
   FundingCredit,
   FundingRecord,
   LedgerTx,
+  NewAuditEntry,
   NewUser,
   NotificationInput,
+  PlatformStats,
   SessionRecord,
+  UserListOptions,
   UserPatch,
   UserRecord,
+  UserRole,
+  UserStatus,
   WalletStore,
 } from './store'
 import type { TierId } from './tiers'
 
-const { users, sessions, authTokens, transactions, fundings, beneficiaries, notifications } =
-  schema
+const {
+  users,
+  sessions,
+  authTokens,
+  transactions,
+  fundings,
+  beneficiaries,
+  notifications,
+  adminAuditLog,
+} = schema
 
 type UserRow = typeof users.$inferSelect
 type TxRow = typeof transactions.$inferSelect
@@ -49,6 +65,8 @@ function toUserRecord(row: UserRow): UserRecord {
   return {
     ...row,
     tier: row.tier as TierId,
+    role: row.role as UserRole,
+    status: row.status as UserStatus,
     createdAt: row.createdAt.toISOString(),
   }
 }
@@ -411,5 +429,137 @@ export class DrizzleWalletStore implements WalletStore {
       .from(notifications)
       .where(and(eq(notifications.userId, userId), eq(notifications.read, false)))
     return row?.count ?? 0
+  }
+
+  async listUsers(opts?: UserListOptions) {
+    const search = opts?.search?.trim()
+    const where = search
+      ? or(
+          ilike(users.name, `%${search}%`),
+          ilike(users.username, `%${search}%`),
+          ilike(users.email, `%${search}%`),
+        )
+      : undefined
+    let q = getDb().select().from(users).where(where).orderBy(desc(users.createdAt)).$dynamic()
+    if (opts?.limit != null) q = q.limit(opts.limit)
+    if (opts?.offset != null) q = q.offset(opts.offset)
+    const rows = await q
+    return rows.map(toUserRecord)
+  }
+
+  async countUsers(search?: string) {
+    const trimmed = search?.trim()
+    const where = trimmed
+      ? or(
+          ilike(users.name, `%${trimmed}%`),
+          ilike(users.username, `%${trimmed}%`),
+          ilike(users.email, `%${trimmed}%`),
+        )
+      : undefined
+    const [row] = await getDb()
+      .select({ count: sql<number>`count(*)::int` })
+      .from(users)
+      .where(where)
+    return row?.count ?? 0
+  }
+
+  async listAllTransactions(opts?: { limit?: number; offset?: number }): Promise<AdminLedgerTx[]> {
+    let q = getDb()
+      .select({ tx: transactions, username: users.username, userName: users.name })
+      .from(transactions)
+      .innerJoin(users, eq(transactions.userId, users.id))
+      .orderBy(desc(transactions.createdAt))
+      .$dynamic()
+    if (opts?.limit != null) q = q.limit(opts.limit)
+    if (opts?.offset != null) q = q.offset(opts.offset)
+    const rows = await q
+    return rows.map((r) => ({
+      ...toWalletTx(r.tx),
+      userId: r.tx.userId,
+      username: r.username,
+      userName: r.userName,
+    }))
+  }
+
+  async listAllFundings(opts?: { limit?: number; offset?: number }): Promise<AdminFunding[]> {
+    let q = getDb()
+      .select({ funding: fundings, userId: users.id, username: users.username })
+      .from(fundings)
+      .leftJoin(users, eq(fundings.accountReference, users.billstackRef))
+      .orderBy(desc(fundings.receivedAt))
+      .$dynamic()
+    if (opts?.limit != null) q = q.limit(opts.limit)
+    if (opts?.offset != null) q = q.offset(opts.offset)
+    const rows = await q
+    return rows.map((r) => ({
+      ...toFundingRecord(r.funding),
+      userId: r.userId ?? null,
+      username: r.username ?? null,
+    }))
+  }
+
+  async getPlatformStats(): Promise<PlatformStats> {
+    const db = getDb()
+    const [[userAgg], tierRows, [txAgg], [fundAgg]] = await Promise.all([
+      db
+        .select({
+          total: sql<number>`count(*)::int`,
+          frozen: sql<number>`count(*) filter (where ${users.status} = 'frozen')::int`,
+          admins: sql<number>`count(*) filter (where ${users.role} = 'admin')::int`,
+        })
+        .from(users),
+      db.select({ tier: users.tier, count: sql<number>`count(*)::int` }).from(users).groupBy(users.tier),
+      db.select({ count: sql<number>`count(*)::int` }).from(transactions),
+      db
+        .select({
+          count: sql<number>`count(*)::int`,
+          total: sql<number>`coalesce(sum(${fundings.amount}), 0)::float8`,
+        })
+        .from(fundings),
+    ])
+    const tierCounts: Record<TierId, number> = { 1: 0, 2: 0, 3: 0 }
+    for (const r of tierRows) tierCounts[r.tier as TierId] = r.count
+    return {
+      totalUsers: userAgg?.total ?? 0,
+      frozenUsers: userAgg?.frozen ?? 0,
+      adminUsers: userAgg?.admins ?? 0,
+      totalTransactions: txAgg?.count ?? 0,
+      totalFundings: fundAgg?.count ?? 0,
+      totalFundedNgn: fundAgg?.total ?? 0,
+      tierCounts,
+    }
+  }
+
+  async addAuditLog(entry: NewAuditEntry) {
+    await getDb()
+      .insert(adminAuditLog)
+      .values({
+        id: `aud_${crypto.randomUUID().replace(/-/g, '').slice(0, 20)}`,
+        actorId: entry.actorId,
+        actorName: entry.actorName,
+        action: entry.action,
+        targetUserId: entry.targetUserId ?? null,
+        detail: entry.detail ?? null,
+      })
+  }
+
+  async listAuditLog(opts?: { limit?: number; targetUserId?: string }): Promise<AdminAuditEntry[]> {
+    let q = getDb()
+      .select()
+      .from(adminAuditLog)
+      .where(opts?.targetUserId ? eq(adminAuditLog.targetUserId, opts.targetUserId) : undefined)
+      .orderBy(desc(adminAuditLog.createdAt))
+      .$dynamic()
+    if (opts?.limit != null) q = q.limit(opts.limit)
+    const rows = await q
+    return rows.map((r) => ({
+      id: r.id,
+      actorId: r.actorId,
+      actorName: r.actorName,
+      action: r.action,
+      targetUserId: r.targetUserId ?? null,
+      detail: r.detail ?? null,
+      createdAt: r.createdAt.toISOString(),
+    }))
   }
 }

@@ -24,6 +24,9 @@ import type { TierId } from './tiers'
 // Records
 // ---------------------------------------------------------------------------
 
+export type UserRole = 'user' | 'admin'
+export type UserStatus = 'active' | 'frozen'
+
 export interface UserRecord {
   id: string
   name: string
@@ -34,6 +37,8 @@ export interface UserRecord {
   emailVerified: boolean
   pinHash: string | null
   tier: TierId
+  role: UserRole
+  status: UserStatus
   billstackRef: string
   kycAddress: string | null
   kycIdType: string | null
@@ -66,6 +71,8 @@ export type UserPatch = Partial<
     | 'emailVerified'
     | 'pinHash'
     | 'tier'
+    | 'role'
+    | 'status'
     | 'kycAddress'
     | 'kycIdType'
     | 'kycIdNumber'
@@ -138,6 +145,52 @@ export interface AuthTokenRecord {
   attempts: number
 }
 
+/** A ledger row with the owning user's identity, for admin oversight views. */
+export type AdminLedgerTx = LedgerTx & { username: string; userName: string }
+
+/** A platform-wide funding row with the owning user attached (may be null). */
+export type AdminFunding = FundingRecord & {
+  userId: string | null
+  username: string | null
+}
+
+/** Options for paginated/searchable admin user listing. */
+export interface UserListOptions {
+  search?: string
+  limit?: number
+  offset?: number
+}
+
+/** Aggregate platform metrics for the admin overview. */
+export interface PlatformStats {
+  totalUsers: number
+  frozenUsers: number
+  adminUsers: number
+  totalTransactions: number
+  totalFundings: number
+  totalFundedNgn: number
+  tierCounts: Record<TierId, number>
+}
+
+/** An append-only admin audit entry. */
+export interface AdminAuditEntry {
+  id: string
+  actorId: string
+  actorName: string
+  action: string
+  targetUserId: string | null
+  detail: string | null
+  createdAt: string
+}
+
+export type NewAuditEntry = {
+  actorId: string
+  actorName: string
+  action: string
+  targetUserId?: string | null
+  detail?: string | null
+}
+
 // ---------------------------------------------------------------------------
 // The store contract
 // ---------------------------------------------------------------------------
@@ -187,6 +240,15 @@ export interface WalletStore {
   markNotificationRead(userId: string, id: string): Promise<void>
   markAllNotificationsRead(userId: string): Promise<void>
   getUnreadCount(userId: string): Promise<number>
+
+  // Admin — user directory, oversight and audit trail
+  listUsers(opts?: UserListOptions): Promise<UserRecord[]>
+  countUsers(search?: string): Promise<number>
+  listAllTransactions(opts?: { limit?: number; offset?: number }): Promise<AdminLedgerTx[]>
+  listAllFundings(opts?: { limit?: number; offset?: number }): Promise<AdminFunding[]>
+  getPlatformStats(): Promise<PlatformStats>
+  addAuditLog(entry: NewAuditEntry): Promise<void>
+  listAuditLog(opts?: { limit?: number; targetUserId?: string }): Promise<AdminAuditEntry[]>
 }
 
 // ---------------------------------------------------------------------------
@@ -213,6 +275,7 @@ interface MemoryState {
   fundings: Map<string, FundingRecord>
   beneficiaries: Map<string, Beneficiary & { userId: string }>
   notifications: Map<string, WalletNotification & { userId: string }>
+  auditLog: AdminAuditEntry[]
   counter: number
 }
 
@@ -225,6 +288,7 @@ function seedState(): MemoryState {
     fundings: new Map(),
     beneficiaries: new Map(),
     notifications: new Map(),
+    auditLog: [],
     counter: 0,
   }
 
@@ -242,6 +306,8 @@ function seedState(): MemoryState {
     emailVerified: true,
     pinHash,
     tier: 1,
+    role: 'user',
+    status: 'active',
     billstackRef: billstackReferenceForUser(id),
     kycAddress: null,
     kycIdType: null,
@@ -257,6 +323,12 @@ function seedState(): MemoryState {
   const demo = mkUser('adaeze', 'Adaeze Okafor', 'demo@masanawa.app')
   demo.phone = '+234 803 555 0142'
   state.users.set(demo.id, demo)
+
+  // Seeded platform administrator: admin@masanawa.app / password123 · PIN 1234
+  const admin = mkUser('admin', 'Platform Admin', 'admin@masanawa.app')
+  admin.role = 'admin'
+  admin.tier = 3
+  state.users.set(admin.id, admin)
 
   const directory: [string, string][] = [
     ['chinedu', 'Chinedu Eze'],
@@ -334,6 +406,8 @@ class InMemoryWalletStore implements WalletStore {
       emailVerified: false,
       pinHash: null,
       tier: 1,
+      role: 'user',
+      status: 'active',
       kycAddress: null,
       kycIdType: null,
       kycIdNumber: null,
@@ -573,6 +647,98 @@ class InMemoryWalletStore implements WalletStore {
       if (n.userId === userId && !n.read) count += 1
     }
     return count
+  }
+
+  async listUsers(opts?: UserListOptions) {
+    const search = opts?.search?.trim().toLowerCase()
+    let all = [...getState().users.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    if (search) {
+      all = all.filter(
+        (u) =>
+          u.name.toLowerCase().includes(search) ||
+          u.username.toLowerCase().includes(search) ||
+          u.email.toLowerCase().includes(search),
+      )
+    }
+    const offset = opts?.offset ?? 0
+    const limit = opts?.limit ?? all.length
+    return all.slice(offset, offset + limit)
+  }
+
+  async countUsers(search?: string) {
+    return (await this.listUsers({ search })).length
+  }
+
+  async listAllTransactions(opts?: { limit?: number; offset?: number }) {
+    const users = getState().users
+    const all: AdminLedgerTx[] = getState()
+      .transactions.slice()
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .map((tx) => {
+        const owner = users.get(tx.userId)
+        return { ...tx, username: owner?.username ?? tx.userId, userName: owner?.name ?? 'Unknown' }
+      })
+    const offset = opts?.offset ?? 0
+    const limit = opts?.limit ?? all.length
+    return all.slice(offset, offset + limit)
+  }
+
+  async listAllFundings(opts?: { limit?: number; offset?: number }) {
+    const users = [...getState().users.values()]
+    const byRef = new Map(users.map((u) => [u.billstackRef, u]))
+    const all: AdminFunding[] = [...getState().fundings.values()]
+      .sort((a, b) => b.receivedAt.localeCompare(a.receivedAt))
+      .map((f) => {
+        const owner = byRef.get(f.accountReference) ?? null
+        return { ...f, userId: owner?.id ?? null, username: owner?.username ?? null }
+      })
+    const offset = opts?.offset ?? 0
+    const limit = opts?.limit ?? all.length
+    return all.slice(offset, offset + limit)
+  }
+
+  async getPlatformStats(): Promise<PlatformStats> {
+    const users = [...getState().users.values()]
+    const tierCounts: Record<TierId, number> = { 1: 0, 2: 0, 3: 0 }
+    let frozenUsers = 0
+    let adminUsers = 0
+    for (const u of users) {
+      tierCounts[u.tier] += 1
+      if (u.status === 'frozen') frozenUsers += 1
+      if (u.role === 'admin') adminUsers += 1
+    }
+    const fundings = [...getState().fundings.values()]
+    return {
+      totalUsers: users.length,
+      frozenUsers,
+      adminUsers,
+      totalTransactions: getState().transactions.length,
+      totalFundings: fundings.length,
+      totalFundedNgn: fundings.reduce((sum, f) => sum + f.amount, 0),
+      tierCounts,
+    }
+  }
+
+  async addAuditLog(entry: NewAuditEntry) {
+    const s = getState()
+    s.counter += 1
+    s.auditLog.unshift({
+      id: `aud_${Date.now()}_${s.counter}`,
+      actorId: entry.actorId,
+      actorName: entry.actorName,
+      action: entry.action,
+      targetUserId: entry.targetUserId ?? null,
+      detail: entry.detail ?? null,
+      createdAt: new Date().toISOString(),
+    })
+  }
+
+  async listAuditLog(opts?: { limit?: number; targetUserId?: string }) {
+    let entries = getState().auditLog
+    if (opts?.targetUserId) {
+      entries = entries.filter((e) => e.targetUserId === opts.targetUserId)
+    }
+    return opts?.limit ? entries.slice(0, opts.limit) : entries.slice()
   }
 }
 
