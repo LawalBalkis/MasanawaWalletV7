@@ -113,7 +113,59 @@ Ordered. Work top-to-bottom; check items off as they land.
 
 ---
 
-## 4. Verification tiers
+## 4. Competitive gap analysis — vs. nasfampay.com (recommended)
+
+Findings from auditing a comparable Nigerian naira↔crypto product
+(nasfampay.com, "Buy Crypto Gas Fees with Naira · No P2P", ~40k users) against
+the current Masanawa build. These are **recommendations, not committed work** —
+listed high→low impact so product can prioritise. Nothing here is built yet.
+
+### High impact — clear differentiators we lack
+- [ ] **Buy gas fees to any external wallet (30+ networks).** The competitor's
+      flagship: fund with naira, send a small native-token "gas" amount to a
+      pasted wallet address on any of 30+ chains. We have crypto *withdrawal*
+      but not a dedicated, low-friction "pay gas to an address" micro-flow or
+      multi-network breadth (`ASSETS` is NGN + 5). Recommend: a `Buy gas`
+      dashboard flow + expand `lib/wallet/assets.ts` network coverage.
+- [ ] **Crypto ↔ crypto swap.** We only trade each asset against NGN. Add a
+      direct swap flow (e.g. USDT→SOL) with rate/fee preview, reusing
+      `trade-flow.tsx` patterns and `prices.ts`.
+- [ ] **Public price calculator (pre-signup).** Competitor shows a live
+      quote widget on the landing page (pick network, enter amount/address,
+      see naira price) before any account. Drives conversion. Recommend a
+      read-only calculator on the marketing site backed by `prices.ts`.
+- [ ] **Bill payments.** Airtime, data plans, electricity, cable — a major
+      retention/utility hook. Needs a VTU/bills aggregator integration + a new
+      `bills` ledger category and dashboard flow.
+
+### Medium impact — growth & reach
+- [ ] **Referral program.** "Get paid for every friend you invite." Needs a
+      referral code per user, attribution on sign-up, and a reward ledger
+      entry. High growth leverage, self-contained.
+- [ ] **Telegram Mini App / bot.** Competitor runs services through Telegram
+      (incl. Telegram Stars). Large channel in this market. Recommend at least
+      a Telegram bot for balance/quotes, Mini App later.
+- [ ] **Social proof on landing.** Live/announced stats (users, volume,
+      networks) — currently `HERO_STATS` are static labels. Wire to real
+      platform metrics (`getPlatformStats` already exists for admin).
+- [ ] **Social + support channels in footer.** Competitor links Telegram,
+      WhatsApp, Instagram, X, plus a support phone/email. Our footer has legal
+      pages but no social/contact channels. Low effort, high trust signal.
+
+### Lower impact — polish / optional
+- [ ] **Mobile app / APK download.** Competitor ships an Android APK + iOS
+      guide. Our `download-cta` is currently a marketing placeholder. Decide
+      PWA vs. native before promising a download.
+- [ ] **Telegram Stars / niche digital goods.** Only if the Telegram channel
+      above is pursued.
+
+> Note: several competitor items overlap with our existing hardening backlog
+> (Phase 6) and Verification tiers — coordinate so gas-fee/swap/bills flows all
+> respect tier limits in `lib/wallet/tiers.ts`.
+
+---
+
+## 5. Verification tiers
 
 Defined in `lib/wallet/tiers.ts` — the single source of truth for limits,
 shown in **Settings → Verification tier** and enforced on money-movement flows.
@@ -129,7 +181,7 @@ shown in **Settings → Verification tier** and enforced on money-movement flows
 
 ---
 
-## 5. Required manual setup (production)
+## 6. Required manual setup (production)
 
 ### Billstack webhook URL
 1. Billstack dashboard → **Developer → Webhooks**.
