@@ -7,6 +7,7 @@ import { MnemonicGrid } from "../components/mnemonic-grid"
 import { useWallet } from "../lib/wallet-context"
 import { unlockVault, VaultLockedError, WrongPinError } from "../lib/storage/vault"
 import { biometricsAvailable, enableBiometricUnlock, disableBiometricUnlock } from "../lib/storage/biometrics"
+import { CURRENCIES } from "../lib/format"
 import { colors, radius, spacing, type } from "../lib/theme"
 
 const AUTO_LOCK_OPTIONS = [
@@ -187,6 +188,38 @@ export default function Settings() {
         </Pressable>
       </View>
 
+      <Text style={[type.caption, styles.sectionLabel]}>DISPLAY</Text>
+      <View style={styles.group}>
+        <View style={styles.currencyItem}>
+          <View style={styles.itemBody}>
+            <Text style={type.body}>Currency</Text>
+            <Text style={type.caption}>Fiat currency for balances and prices</Text>
+          </View>
+          <View style={styles.currencyGrid}>
+            {CURRENCIES.map((c) => {
+              const active = settings.currency === c.code
+              return (
+                <Pressable
+                  key={c.code}
+                  onPress={() => {
+                    touch()
+                    updateSettings({ currency: c.code })
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Display prices in ${c.label}`}
+                  accessibilityState={{ selected: active }}
+                  style={[styles.currencyChip, active && styles.currencyChipActive]}
+                >
+                  <Text style={[styles.currencyChipText, active && styles.currencyChipTextActive]}>
+                    {c.symbol} {c.label}
+                  </Text>
+                </Pressable>
+              )
+            })}
+          </View>
+        </View>
+      </View>
+
       <Text style={[type.caption, styles.sectionLabel]}>DANGER ZONE</Text>
       <Button label="Remove wallet from device" variant="danger" onPress={confirmReset} />
       <Text style={type.caption}>
@@ -253,6 +286,35 @@ const styles = StyleSheet.create({
   chevron: {
     color: colors.muted,
     fontSize: 24,
+  },
+  currencyItem: {
+    paddingVertical: spacing.md,
+    gap: spacing.md,
+  },
+  currencyGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+  },
+  currencyChip: {
+    paddingHorizontal: spacing.md,
+    height: 36,
+    justifyContent: "center",
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+  },
+  currencyChipActive: {
+    borderColor: colors.primary,
+  },
+  currencyChipText: {
+    color: colors.muted,
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  currencyChipTextActive: {
+    color: colors.foreground,
   },
   warning: {
     backgroundColor: colors.surface,

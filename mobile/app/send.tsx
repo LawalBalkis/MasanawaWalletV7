@@ -6,6 +6,8 @@ import useSWR, { useSWRConfig } from "swr"
 import { Screen } from "../components/screen"
 import { Button } from "../components/button"
 import { PinPad } from "../components/pin-pad"
+import { QrScanner } from "../components/qr-scanner"
+import { parseAddressUri } from "../lib/parse-address-uri"
 import { useWallet } from "../lib/wallet-context"
 import { CHAINS, type ChainConfig } from "../lib/chains/config"
 import { findToken, tokensForChain, type TokenConfig } from "../lib/chains/tokens"
@@ -57,6 +59,7 @@ export default function Send() {
   const [error, setError] = useState<string | null>(null)
   const [pinClear, setPinClear] = useState(0)
   const [txHash, setTxHash] = useState<string | null>(null)
+  const [scannerOpen, setScannerOpen] = useState(false)
 
   // Shares the SWR cache key (and single RPC/price fan-out) with the home screen.
   const portfolioKey = addresses
@@ -158,6 +161,27 @@ export default function Send() {
     const text = await Clipboard.getStringAsync()
     if (text) setRecipient(text.trim())
   }, [touch])
+
+  /**
+   * Handle a scanned QR payload. Returns an error string (scanner keeps
+   * running) or null on success (scanner closes).
+   */
+  const handleScan = useCallback(
+    (data: string): string | null => {
+      const parsed = parseAddressUri(data)
+      if (!parsed) return "Not an address QR code"
+      if (!isValidAddress(chain.kind, parsed.address)) {
+        return `Not a valid ${chain.name} address`
+      }
+      touch()
+      setRecipient(parsed.address)
+      // Only prefill the amount if the QR carried one and the field is empty.
+      if (parsed.amount) setAmount((prev) => prev || parsed.amount!)
+      setScannerOpen(false)
+      return null
+    },
+    [chain, touch],
+  )
 
   const setMax = useCallback(() => {
     touch()
@@ -373,7 +397,19 @@ export default function Send() {
         <Pressable onPress={pasteRecipient} hitSlop={8} accessibilityRole="button" accessibilityLabel="Paste address">
           <Text style={styles.inlineAction}>Paste</Text>
         </Pressable>
+        <Pressable
+          onPress={() => {
+            touch()
+            setScannerOpen(true)
+          }}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Scan QR code"
+        >
+          <Text style={styles.inlineAction}>Scan</Text>
+        </Pressable>
       </View>
+      <QrScanner visible={scannerOpen} onScan={handleScan} onClose={() => setScannerOpen(false)} />
       {recipient.length > 0 && !recipientValid && <Text style={styles.errorText}>Invalid {chain.name} address</Text>}
       {selfSend && <Text style={styles.errorText}>Cannot send to your own address on {chain.name}</Text>}
 

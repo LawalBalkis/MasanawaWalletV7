@@ -5,6 +5,7 @@
 /** Supported display currencies (must be CoinGecko `vs_currencies` values). */
 export const CURRENCIES = [
   { code: "usd", label: "USD", symbol: "$" },
+  { code: "ngn", label: "NGN", symbol: "\u20A6" },
   { code: "eur", label: "EUR", symbol: "\u20AC" },
   { code: "gbp", label: "GBP", symbol: "\u00A3" },
   { code: "jpy", label: "JPY", symbol: "\u00A5" },
