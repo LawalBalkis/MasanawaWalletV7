@@ -23,7 +23,12 @@ export default async function DashboardLayout({
 
   return (
     <ToastProvider>
-      <AppShell username={user.username} name={user.name} unreadCount={unreadCount}>
+      <AppShell
+        username={user.username}
+        name={user.name}
+        unreadCount={unreadCount}
+        isAdmin={user.role === 'admin'}
+      >
         {children}
       </AppShell>
     </ToastProvider>

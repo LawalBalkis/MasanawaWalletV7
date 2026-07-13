@@ -137,17 +137,7 @@ function VerificationTierSection({
                     Current
                   </span>
                 ) : isNext ? (
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() =>
-                      toast(
-                        'Verification coming soon',
-                        `${tier.name.split(' — ')[0]} upgrade will be available once identity checks launch.`,
-                        'info',
-                      )
-                    }
-                  >
+                  <Button size="sm" variant="secondary" onClick={() => onUpgrade(tier.id as 2 | 3)}>
                     Upgrade
                   </Button>
                 ) : null}
@@ -204,7 +194,11 @@ export function SettingsClient({
   beneficiaries: Beneficiary[]
 }) {
   const { toast } = useToast()
+  const router = useRouter()
   const [, startTransition] = useTransition()
+
+  // Verification tier upgrade
+  const [upgradeTarget, setUpgradeTarget] = useState<2 | 3 | null>(null)
 
   // Profile
   const [name, setName] = useState(user.name)
@@ -285,6 +279,17 @@ export function SettingsClient({
     return result
   }
 
+  async function handleTierUpgrade(data: TierUpgradeSubmit) {
+    const result = await submitTierUpgradeAction(data)
+    if (result.ok) {
+      setUpgradeTarget(null)
+      const name = VERIFICATION_TIERS[data.targetTier as TierId].name
+      toast('Verification upgraded', `Your account is now ${name}. New limits are active.`, 'success')
+      router.refresh()
+    }
+    return result
+  }
+
   const currentTier = VERIFICATION_TIERS[user.tier]
 
   return (
@@ -359,7 +364,7 @@ export function SettingsClient({
         </form>
       </Section>
 
-      <VerificationTierSection currentTierId={currentTier.id} />
+      <VerificationTierSection currentTierId={currentTier.id} onUpgrade={setUpgradeTarget} />
 
       <Section title="Security" description="Protect your wallet with extra layers of verification.">
         <div className="flex flex-col gap-5">
@@ -455,6 +460,14 @@ export function SettingsClient({
           </ul>
         )}
       </Section>
+
+      <TierUpgradeDialog
+        open={upgradeTarget !== null}
+        targetTier={(upgradeTarget ?? 2) as 2 | 3}
+        tierName={VERIFICATION_TIERS[(upgradeTarget ?? 2) as TierId].name}
+        onSubmit={handleTierUpgrade}
+        onCancel={() => setUpgradeTarget(null)}
+      />
 
       <PinDialog
         open={pinStep !== null}
