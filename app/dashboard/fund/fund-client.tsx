@@ -65,6 +65,7 @@ export function FundClient({
                 name="firstName"
                 autoComplete="given-name"
                 placeholder="Adaeze"
+                defaultValue={state?.values?.firstName}
                 error={state?.fieldErrors?.firstName}
               />
               <Field
@@ -72,6 +73,7 @@ export function FundClient({
                 name="lastName"
                 autoComplete="family-name"
                 placeholder="Okafor"
+                defaultValue={state?.values?.lastName}
                 error={state?.fieldErrors?.lastName}
               />
             </div>
@@ -81,6 +83,7 @@ export function FundClient({
               type="email"
               autoComplete="email"
               placeholder="you@example.com"
+              defaultValue={state?.values?.email}
               error={state?.fieldErrors?.email}
             />
             <Field
@@ -90,10 +93,12 @@ export function FundClient({
               autoComplete="tel"
               inputMode="numeric"
               placeholder="08012345678"
+              defaultValue={state?.values?.phone}
               error={state?.fieldErrors?.phone}
             />
 
             <IdSection
+              defaultIdType={state?.values?.idType === 'bvn' ? 'bvn' : 'nin'}
               idTypeError={state?.fieldErrors?.idType}
               idNumberError={state?.fieldErrors?.idNumber}
             />
@@ -154,13 +159,15 @@ function Field({
 }
 
 function IdSection({
+  defaultIdType = 'nin',
   idTypeError,
   idNumberError,
 }: {
+  defaultIdType?: 'nin' | 'bvn'
   idTypeError?: string
   idNumberError?: string
 }) {
-  const [idType, setIdType] = useState<'nin' | 'bvn'>('nin')
+  const [idType, setIdType] = useState<'nin' | 'bvn'>(defaultIdType)
 
   return (
     <div className="flex flex-col gap-1.5">
