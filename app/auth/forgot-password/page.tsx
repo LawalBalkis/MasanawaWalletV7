@@ -3,17 +3,20 @@
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { requestPasswordResetAction, type AuthFormState } from '@/lib/auth/actions'
 import { MailCheck } from 'lucide-react'
 import Link from 'next/link'
-import { useState } from 'react'
+import { useActionState } from 'react'
+
+const initialState: AuthFormState = {}
 
 export default function ForgotPasswordPage() {
-  const [email, setEmail] = useState('')
-  const [sent, setSent] = useState(false)
+  const [state, formAction, pending] = useActionState(
+    requestPasswordResetAction,
+    initialState,
+  )
 
-  const valid = /\S+@\S+\.\S+/.test(email)
-
-  if (sent) {
+  if (state.success) {
     return (
       <div
         className="flex flex-col items-center gap-4 rounded-2xl border border-border bg-card p-8 text-center"
@@ -23,7 +26,7 @@ export default function ForgotPasswordPage() {
         <div>
           <p className="text-base font-semibold text-foreground">Check your inbox</p>
           <p className="mt-1 text-sm text-muted-foreground text-pretty">
-            If an account exists for {email}, we&apos;ve sent a link to reset your password.
+            If an account exists for that email, we&apos;ve sent a link to reset your password.
           </p>
         </div>
         <Button nativeButton={false} render={<Link href="/auth/sign-in" />}>
@@ -44,28 +47,27 @@ export default function ForgotPasswordPage() {
         </p>
       </header>
 
-      <form
-        className="mt-6 flex flex-col gap-5"
-        onSubmit={(e) => {
-          e.preventDefault()
-          if (valid) setSent(true)
-        }}
-      >
+      <form className="mt-6 flex flex-col gap-5" action={formAction}>
         <div className="flex flex-col gap-2">
           <Label htmlFor="forgot-email">Email address</Label>
           <Input
             id="forgot-email"
+            name="email"
             type="email"
             autoComplete="email"
             placeholder="you@example.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
             required
           />
         </div>
 
-        <Button type="submit" size="lg" disabled={!valid}>
-          Send reset link
+        {state.error && (
+          <p className="text-sm text-destructive" role="alert">
+            {state.error}
+          </p>
+        )}
+
+        <Button type="submit" size="lg" disabled={pending}>
+          {pending ? 'Sending…' : 'Send reset link'}
         </Button>
       </form>
 
