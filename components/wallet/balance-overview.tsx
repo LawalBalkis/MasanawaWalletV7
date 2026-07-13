@@ -1,8 +1,4 @@
-import {
-  DEMO_USER,
-  formatNgn,
-  totalNgnValue,
-} from '@/lib/wallet/demo-data'
+import { formatNgn } from '@/lib/wallet/assets'
 import { ArrowDownToLine, ArrowLeftRight, Banknote, Send } from 'lucide-react'
 import Link from 'next/link'
 
@@ -13,9 +9,7 @@ const QUICK_ACTIONS = [
   { href: '/dashboard/withdraw', label: 'Withdraw', icon: ArrowDownToLine },
 ]
 
-export function BalanceOverview() {
-  const total = totalNgnValue()
-
+export function BalanceOverview({ total, username }: { total: number; username: string }) {
   return (
     <section aria-labelledby="balance-heading">
       <div className="rounded-2xl border border-border bg-card p-6 sm:p-8">
@@ -28,7 +22,7 @@ export function BalanceOverview() {
               {formatNgn(total)}
             </p>
             <p className="mt-2 text-sm text-muted-foreground">
-              Across naira and crypto · <span className="font-mono text-primary">@{DEMO_USER.username}</span>
+              Across naira and crypto · <span className="font-mono text-primary">@{username}</span>
             </p>
           </div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
