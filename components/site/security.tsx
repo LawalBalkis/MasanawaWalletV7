@@ -3,9 +3,36 @@ import { SECURITY_POINTS } from './data'
 export function Security() {
   return (
     <section id="security" className="scroll-mt-20 border-b border-border">
-      <div className="mx-auto grid max-w-7xl gap-12 px-4 py-20 sm:px-8 lg:grid-cols-[0.85fr_1.15fr] lg:gap-20 lg:px-12 lg:py-28">
-        <div><span className="font-mono text-xs uppercase tracking-[0.2em] text-primary">Account safety</span><h2 className="mt-5 text-balance text-4xl font-semibold tracking-[-0.035em] text-foreground sm:text-5xl">Control that stays visible at every step.</h2><p className="mt-5 text-pretty text-lg leading-relaxed text-muted-foreground">From bank funding to a final withdrawal, Masanawa gives you clear transaction details and protected confirmation points.</p><div className="mt-10 border-l-2 border-primary pl-5"><p className="text-sm font-semibold text-foreground">Check. Review. Confirm.</p><p className="mt-2 text-sm leading-relaxed text-muted-foreground">Crypto transfers can be irreversible. We make the important details easy to see before money moves.</p></div></div>
-        <div className="grid sm:grid-cols-2">{SECURITY_POINTS.map((point) => <article key={point.title} className="border border-border bg-card p-6 sm:p-8"><span className="flex size-11 items-center justify-center rounded-xl bg-accent text-accent-foreground"><point.icon className="size-5" /></span><h3 className="mt-8 text-lg font-semibold text-foreground">{point.title}</h3><p className="mt-3 text-sm leading-relaxed text-muted-foreground">{point.body}</p></article>)}</div>
+      <div className="mx-auto max-w-7xl px-4 py-16 sm:px-8 lg:px-12 lg:py-20">
+        <div className="flex flex-col gap-4 border-b border-border pb-8 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-2xl">
+            <span className="font-mono text-xs uppercase tracking-[0.2em] text-primary">System / Account safety</span>
+            <h2 className="mt-4 text-balance text-3xl font-semibold tracking-[-0.03em] text-foreground sm:text-4xl">
+              Control that stays visible at every step.
+            </h2>
+          </div>
+          <p className="max-w-sm text-pretty text-sm leading-relaxed text-muted-foreground">
+            Crypto transfers can be irreversible. We make the recipient, amount, rate, and fee easy to
+            see before money moves.
+          </p>
+        </div>
+
+        <div className="mt-10 grid gap-px overflow-hidden rounded-2xl border border-border bg-border sm:grid-cols-2 lg:grid-cols-4">
+          {SECURITY_POINTS.map((point, index) => (
+            <article key={point.title} className="group flex flex-col bg-card p-6 transition-colors hover:bg-secondary/50">
+              <div className="flex items-center justify-between">
+                <span className="flex size-11 items-center justify-center rounded-xl bg-accent text-accent-foreground">
+                  <point.icon className="size-5" />
+                </span>
+                <span className="font-mono text-xs uppercase tracking-[0.15em] text-muted-foreground">
+                  {String(index + 1).padStart(2, '0')}
+                </span>
+              </div>
+              <h3 className="mt-8 text-base font-semibold text-foreground">{point.title}</h3>
+              <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{point.body}</p>
+            </article>
+          ))}
+        </div>
       </div>
     </section>
   )

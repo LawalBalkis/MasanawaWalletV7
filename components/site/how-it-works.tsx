@@ -4,19 +4,21 @@ import { MONEY_FLOW } from './data'
 export function HowItWorks() {
   return (
     <section id="flow" className="scroll-mt-20 border-b border-border bg-secondary">
-      <div className="mx-auto max-w-7xl px-4 py-20 sm:px-8 lg:px-12 lg:py-28">
-        <div className="max-w-2xl">
-          <span className="font-mono text-xs uppercase tracking-[0.2em] text-primary">How money moves</span>
-          <h2 className="mt-5 text-balance text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-            Bank transfer in. Bank withdrawal out. Crypto in between.
-          </h2>
-          <p className="mt-4 text-pretty text-lg leading-relaxed text-muted-foreground">
-            One clear path: fund your NGN wallet, buy crypto, send to any @username, and cash out to
-            a Nigerian bank when you&apos;re ready.
+      <div className="mx-auto max-w-7xl px-4 py-16 sm:px-8 lg:px-12 lg:py-20">
+        <div className="flex flex-col gap-4 border-b border-border pb-8 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-2xl">
+            <span className="font-mono text-xs uppercase tracking-[0.2em] text-primary">System / How money moves</span>
+            <h2 className="mt-4 text-balance text-3xl font-semibold tracking-[-0.03em] text-foreground sm:text-4xl">
+              Bank in. Bank out. Crypto in between.
+            </h2>
+          </div>
+          <p className="max-w-sm text-pretty text-sm leading-relaxed text-muted-foreground">
+            One clear path: fund, buy, send to any @username, then cash out to a Nigerian bank when
+            you&apos;re ready.
           </p>
         </div>
 
-        <ol className="mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <ol className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {MONEY_FLOW.map((step, i) => (
             <li key={step.step} className="relative flex flex-col gap-4 rounded-2xl border border-border bg-card p-6 sm:p-7">
               <div className="flex items-center justify-between gap-3">
