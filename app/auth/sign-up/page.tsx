@@ -3,33 +3,18 @@
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { signUpAction, type AuthFormState } from '@/lib/auth/actions'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useActionState, useState } from 'react'
+
+const initialState: AuthFormState = {}
 
 export default function SignUpPage() {
-  const router = useRouter()
-  const [name, setName] = useState('')
+  const [state, formAction, pending] = useActionState(signUpAction, initialState)
   const [username, setUsername] = useState('')
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [busy, setBusy] = useState(false)
 
   const usernameClean = username.trim().replace(/^@/, '').toLowerCase()
-  const usernameValid = /^[a-z0-9_]{3,20}$/.test(usernameClean)
-  const valid =
-    name.trim().length >= 2 &&
-    usernameValid &&
-    /\S+@\S+\.\S+/.test(email) &&
-    password.length >= 8
-
-  function submit(e: React.FormEvent) {
-    e.preventDefault()
-    if (!valid || busy) return
-    setBusy(true)
-    // Demo signup: replaced with real account creation in the wiring step.
-    setTimeout(() => router.push('/auth/verify'), 700)
-  }
+  const usernameValid = usernameClean.length === 0 || /^[a-z0-9_]{3,20}$/.test(usernameClean)
 
   return (
     <div className="rounded-2xl border border-border bg-card p-6 sm:p-8">
@@ -42,17 +27,17 @@ export default function SignUpPage() {
         </p>
       </header>
 
-      <form className="mt-6 flex flex-col gap-5" onSubmit={submit}>
+      <form className="mt-6 flex flex-col gap-5" action={formAction}>
         <div className="flex flex-col gap-2">
           <Label htmlFor="signup-name">Full name</Label>
           <Input
             id="signup-name"
+            name="name"
             type="text"
             autoComplete="name"
             placeholder="Adaeze Okafor"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
             required
+            minLength={2}
           />
         </div>
 
@@ -60,6 +45,7 @@ export default function SignUpPage() {
           <Label htmlFor="signup-username">Username</Label>
           <Input
             id="signup-username"
+            name="username"
             type="text"
             autoComplete="off"
             placeholder="@yourname"
@@ -70,7 +56,7 @@ export default function SignUpPage() {
             aria-describedby="signup-username-hint"
           />
           <p id="signup-username-hint" className="text-xs text-muted-foreground">
-            {username.length > 0 && !usernameValid
+            {!usernameValid
               ? '3–20 characters: letters, numbers and underscores only.'
               : 'Friends send you money with this. You can’t change it later.'}
           </p>
@@ -80,11 +66,10 @@ export default function SignUpPage() {
           <Label htmlFor="signup-email">Email address</Label>
           <Input
             id="signup-email"
+            name="email"
             type="email"
             autoComplete="email"
             placeholder="you@example.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
             required
           />
         </div>
@@ -93,18 +78,23 @@ export default function SignUpPage() {
           <Label htmlFor="signup-password">Password</Label>
           <Input
             id="signup-password"
+            name="password"
             type="password"
             autoComplete="new-password"
             placeholder="At least 8 characters"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
             required
             minLength={8}
           />
         </div>
 
-        <Button type="submit" size="lg" disabled={!valid || busy}>
-          {busy ? 'Creating account…' : 'Create account'}
+        {state.error && (
+          <p className="text-sm text-destructive" role="alert">
+            {state.error}
+          </p>
+        )}
+
+        <Button type="submit" size="lg" disabled={pending}>
+          {pending ? 'Creating account…' : 'Create account'}
         </Button>
 
         <p className="text-center text-xs text-muted-foreground text-pretty">

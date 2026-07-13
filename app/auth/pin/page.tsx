@@ -3,26 +3,19 @@
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { setPinAction, type AuthFormState } from '@/lib/auth/actions'
+import { useActionState, useState } from 'react'
+
+const initialState: AuthFormState = {}
 
 export default function PinSetupPage() {
-  const router = useRouter()
+  const [state, formAction, pending] = useActionState(setPinAction, initialState)
   const [pin, setPin] = useState('')
   const [confirmPin, setConfirmPin] = useState('')
-  const [busy, setBusy] = useState(false)
 
   const pinValid = /^\d{4}$/.test(pin)
   const mismatch = confirmPin.length === 4 && pin !== confirmPin
   const valid = pinValid && pin === confirmPin
-
-  function submit(e: React.FormEvent) {
-    e.preventDefault()
-    if (!valid || busy) return
-    setBusy(true)
-    // Demo PIN setup: replaced with real secure storage in the wiring step.
-    setTimeout(() => router.push('/dashboard'), 700)
-  }
 
   return (
     <div className="rounded-2xl border border-border bg-card p-6 sm:p-8">
@@ -35,11 +28,12 @@ export default function PinSetupPage() {
         </p>
       </header>
 
-      <form className="mt-6 flex flex-col gap-5" onSubmit={submit}>
+      <form className="mt-6 flex flex-col gap-5" action={formAction}>
         <div className="flex flex-col gap-2">
           <Label htmlFor="pin-new">Choose a 4-digit PIN</Label>
           <Input
             id="pin-new"
+            name="pin"
             type="password"
             inputMode="numeric"
             autoComplete="new-password"
@@ -56,6 +50,7 @@ export default function PinSetupPage() {
           <Label htmlFor="pin-confirm">Confirm PIN</Label>
           <Input
             id="pin-confirm"
+            name="confirmPin"
             type="password"
             inputMode="numeric"
             autoComplete="new-password"
@@ -74,8 +69,14 @@ export default function PinSetupPage() {
           )}
         </div>
 
-        <Button type="submit" size="lg" disabled={!valid || busy}>
-          {busy ? 'Saving…' : 'Save PIN and continue'}
+        {state.error && (
+          <p className="text-sm text-destructive" role="alert">
+            {state.error}
+          </p>
+        )}
+
+        <Button type="submit" size="lg" disabled={!valid || pending}>
+          {pending ? 'Saving…' : 'Save PIN and continue'}
         </Button>
       </form>
     </div>

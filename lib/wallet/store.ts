@@ -15,6 +15,7 @@ import 'server-only'
 
 import { hashSecret } from '@/lib/auth/crypto'
 import type { AssetSymbol, Beneficiary, WalletNotification, WalletTx } from './assets'
+import { DrizzleWalletStore } from './drizzle-store'
 import { FALLBACK_NGN_RATES } from './assets'
 import { computeBalances, type Balances } from './ledger'
 import type { TierId } from './tiers'

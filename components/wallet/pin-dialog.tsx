@@ -6,6 +6,11 @@ import { useEffect, useRef, useState } from 'react'
 
 const PIN_LENGTH = 4
 
+/**
+ * PIN confirmation dialog. `onConfirm` receives the entered PIN and should
+ * perform the server-verified action; return `{ ok: false, error }` to keep
+ * the dialog open and show the error (e.g. wrong PIN).
+ */
 export function PinDialog({
   open,
   title = 'Confirm with your PIN',
@@ -16,17 +21,19 @@ export function PinDialog({
   open: boolean
   title?: string
   description?: string
-  onConfirm: () => void
+  onConfirm: (pin: string) => Promise<{ ok: boolean; error?: string }>
   onCancel: () => void
 }) {
   const [pin, setPin] = useState('')
   const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (open) {
       setPin('')
       setBusy(false)
+      setError(null)
       const t = setTimeout(() => inputRef.current?.focus(), 50)
       return () => clearTimeout(t)
     }
@@ -42,11 +49,24 @@ export function PinDialog({
 
   if (!open) return null
 
-  function submit() {
+  async function submit() {
     if (pin.length !== PIN_LENGTH || busy) return
     setBusy(true)
-    // Demo: any 4-digit PIN is accepted after a short delay.
-    setTimeout(() => onConfirm(), 700)
+    setError(null)
+    try {
+      const result = await onConfirm(pin)
+      if (!result.ok) {
+        setError(result.error ?? 'Something went wrong. Try again.')
+        setPin('')
+        setBusy(false)
+        inputRef.current?.focus()
+      }
+      // On success the caller is responsible for closing / navigating.
+    } catch {
+      setError('Something went wrong. Try again.')
+      setPin('')
+      setBusy(false)
+    }
   }
 
   return (
@@ -115,6 +135,12 @@ export function PinDialog({
               ))}
             </div>
           </div>
+
+          {error && (
+            <p className="text-center text-sm text-destructive" role="alert">
+              {error}
+            </p>
+          )}
 
           <Button type="submit" size="lg" disabled={pin.length !== PIN_LENGTH || busy}>
             {busy ? 'Confirming…' : 'Confirm'}
