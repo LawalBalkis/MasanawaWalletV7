@@ -3,15 +3,18 @@
 import { Button } from '@/components/ui/button'
 import { FlowHeader } from '@/components/wallet/flow-header'
 import { PinDialog } from '@/components/wallet/pin-dialog'
+import { TierUpgradeDialog, type TierUpgradeSubmit } from '@/components/wallet/tier-upgrade-dialog'
 import { useToast } from '@/components/wallet/toast'
 import {
   changePinAction,
   removeBeneficiaryAction,
   setPreferenceAction,
+  submitTierUpgradeAction,
   updateProfileAction,
 } from '@/lib/wallet/account-actions'
 import type { Beneficiary } from '@/lib/wallet/assets'
 import { VERIFICATION_TIERS, formatLimit, type TierId } from '@/lib/wallet/tiers'
+import { useRouter } from 'next/navigation'
 import { BadgeCheck, Landmark, Trash2 } from 'lucide-react'
 import { useState, useTransition } from 'react'
 
@@ -96,8 +99,13 @@ function Toggle({
   )
 }
 
-function VerificationTierSection({ currentTierId }: { currentTierId: TierId }) {
-  const { toast } = useToast()
+function VerificationTierSection({
+  currentTierId,
+  onUpgrade,
+}: {
+  currentTierId: TierId
+  onUpgrade: (target: 2 | 3) => void
+}) {
   const tiers = Object.values(VERIFICATION_TIERS)
 
   return (

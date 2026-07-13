@@ -35,6 +35,10 @@ export const users = pgTable(
     pinHash: text('pin_hash'),
     /** KYC verification tier: 1, 2 or 3 (see lib/wallet/tiers.ts). */
     tier: integer('tier').notNull().default(1),
+    /** Access role: 'user' | 'admin'. Admins reach the /admin console. */
+    role: text('role').notNull().default('user'),
+    /** Account status: 'active' | 'frozen'. Frozen users cannot move money. */
+    status: text('status').notNull().default('active'),
     /** Deterministic Billstack reserved-account reference for this user. */
     billstackRef: text('billstack_ref').notNull().unique(),
     // KYC data captured on tier upgrades.
@@ -150,6 +154,35 @@ export const authTokens = pgTable(
   (t) => [
     index('auth_tokens_user_kind_idx').on(t.userId, t.kind),
     index('auth_tokens_secret_hash_idx').on(t.secretHash),
+  ],
+)
+
+/**
+ * Immutable log of privileged admin actions (freeze, tier change, PIN reset,
+ * manual credit/debit, ...). Append-only — used for compliance and dispute
+ * resolution. `detail` is a JSON string with action-specific context.
+ */
+export const adminAuditLog = pgTable(
+  'admin_audit_log',
+  {
+    id: text('id').primaryKey(),
+    actorId: text('actor_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    /** Denormalised actor name so the log survives even if the user changes it. */
+    actorName: text('actor_name').notNull(),
+    /** Machine action code, e.g. 'user.freeze', 'user.credit'. */
+    action: text('action').notNull(),
+    /** The user the action targeted, if any. */
+    targetUserId: text('target_user_id'),
+    /** JSON string with action-specific context (amounts, reasons, before/after). */
+    detail: text('detail'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('admin_audit_actor_idx').on(t.actorId),
+    index('admin_audit_target_idx').on(t.targetUserId),
+    index('admin_audit_created_idx').on(t.createdAt),
   ],
 )
 

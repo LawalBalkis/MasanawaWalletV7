@@ -3,24 +3,24 @@
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import {
+  resendOtpAction,
+  verifyEmailAction,
+  type AuthFormState,
+} from '@/lib/auth/actions'
+import { useActionState, useState } from 'react'
+
+const initialState: AuthFormState = {}
 
 export default function VerifyPage() {
-  const router = useRouter()
   const [code, setCode] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [resent, setResent] = useState(false)
+  const [state, formAction, pending] = useActionState(verifyEmailAction, initialState)
+  const [resendState, resendAction, resending] = useActionState(
+    async () => resendOtpAction(),
+    initialState,
+  )
 
   const valid = /^\d{6}$/.test(code)
-
-  function submit(e: React.FormEvent) {
-    e.preventDefault()
-    if (!valid || busy) return
-    setBusy(true)
-    // Demo verification: replaced with a real OTP check in the wiring step.
-    setTimeout(() => router.push('/auth/pin'), 700)
-  }
 
   return (
     <div className="rounded-2xl border border-border bg-card p-6 sm:p-8">
@@ -33,11 +33,12 @@ export default function VerifyPage() {
         </p>
       </header>
 
-      <form className="mt-6 flex flex-col gap-5" onSubmit={submit}>
+      <form className="mt-6 flex flex-col gap-5" action={formAction}>
         <div className="flex flex-col gap-2">
           <Label htmlFor="verify-code">Verification code</Label>
           <Input
             id="verify-code"
+            name="code"
             type="text"
             inputMode="numeric"
             autoComplete="one-time-code"
@@ -50,24 +51,34 @@ export default function VerifyPage() {
           />
         </div>
 
-        <Button type="submit" size="lg" disabled={!valid || busy}>
-          {busy ? 'Verifying…' : 'Verify email'}
+        {state.error && (
+          <p className="text-sm text-destructive" role="alert">
+            {state.error}
+          </p>
+        )}
+
+        <Button type="submit" size="lg" disabled={!valid || pending}>
+          {pending ? 'Verifying…' : 'Verify email'}
         </Button>
       </form>
 
-      <div className="mt-6 text-center text-sm text-muted-foreground">
-        {resent ? (
-          <p role="status">A new code is on its way.</p>
+      <form action={resendAction} className="mt-6 text-center text-sm text-muted-foreground">
+        {resendState.success ? (
+          <p role="status">{resendState.success}</p>
+        ) : resendState.error ? (
+          <p role="alert" className="text-destructive">
+            {resendState.error}
+          </p>
         ) : (
           <button
-            type="button"
-            onClick={() => setResent(true)}
-            className="font-medium text-primary hover:underline"
+            type="submit"
+            disabled={resending}
+            className="font-medium text-primary hover:underline disabled:opacity-60"
           >
-            Didn&apos;t get the code? Resend it
+            {resending ? 'Sending…' : "Didn't get the code? Resend it"}
           </button>
         )}
-      </div>
+      </form>
     </div>
   )
 }
