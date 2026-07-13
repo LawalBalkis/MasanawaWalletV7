@@ -56,3 +56,20 @@ export async function requireUser(): Promise<UserRecord> {
   if (!user) throw new Error('Not authenticated')
   return user
 }
+
+/**
+ * The signed-in admin for this request, or null. Used by the /admin console to
+ * gate access — a non-admin (or signed-out) session returns null so callers can
+ * redirect. Deduped per request via getCurrentUser.
+ */
+export async function getCurrentAdmin(): Promise<UserRecord | null> {
+  const user = await getCurrentUser()
+  return user && user.role === 'admin' ? user : null
+}
+
+/** Like requireUser but also requires the admin role (for admin server actions). */
+export async function requireAdmin(): Promise<UserRecord> {
+  const user = await requireUser()
+  if (user.role !== 'admin') throw new Error('Not authorized')
+  return user
+}

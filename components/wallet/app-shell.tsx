@@ -14,6 +14,7 @@ import {
   QrCode,
   Send,
   Settings,
+  Shield,
   X,
 } from 'lucide-react'
 import Link from 'next/link'
@@ -64,11 +65,13 @@ export function AppShell({
   username,
   name,
   unreadCount = 0,
+  isAdmin = false,
   children,
 }: {
   username: string
   name: string
   unreadCount?: number
+  isAdmin?: boolean
   children: React.ReactNode
 }) {
   const pathname = usePathname()
@@ -98,6 +101,17 @@ export function AppShell({
       })}
     </nav>
   )
+
+  const adminLink = isAdmin ? (
+    <Link
+      href="/admin"
+      onClick={() => setMenuOpen(false)}
+      className="mb-3 flex items-center gap-3 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2.5 text-sm font-medium text-primary transition-colors hover:bg-primary/10"
+    >
+      <Shield className="size-4" aria-hidden="true" />
+      Admin console
+    </Link>
+  ) : null
 
   const userCard = (
     <div className="rounded-lg border border-border bg-card p-3">
@@ -130,7 +144,10 @@ export function AppShell({
           <NotificationBell unreadCount={unreadCount} />
         </div>
         {nav}
-        <div className="mt-auto">{userCard}</div>
+        <div className="mt-auto">
+          {adminLink}
+          {userCard}
+        </div>
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
@@ -156,7 +173,10 @@ export function AppShell({
         {menuOpen && (
           <div className="border-b border-border bg-background px-4 py-4 lg:hidden">
             {nav}
-            <div className="mt-4">{userCard}</div>
+            <div className="mt-4">
+              {adminLink}
+              {userCard}
+            </div>
           </div>
         )}
 
