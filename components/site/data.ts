@@ -1,125 +1,60 @@
 import {
-  Layers,
-  ShieldCheck,
-  Send,
-  Activity,
-  ScanFace,
-  Wallet,
+  ArrowDownToLine,
+  BadgeCheck,
+  Banknote,
+  CircleDollarSign,
+  Eye,
   KeyRound,
-  Radar,
+  RefreshCcw,
+  Send,
+  ShieldCheck,
+  Smartphone,
+  UserRoundCheck,
+  WalletCards,
 } from 'lucide-react'
 
 export const BRAND = 'Masanawa'
 
-export const CHAINS = [
-  'Ethereum',
-  'Base',
-  'Arbitrum',
-  'Optimism',
-  'BNB Chain',
-  'Solana',
-  'TRON',
+export const PRODUCT_FEATURES = [
+  { icon: WalletCards, number: '01', title: 'Your own NGN account', body: 'Get a dedicated virtual naira account and fund Masanawa with a regular bank transfer.' },
+  { icon: CircleDollarSign, number: '02', title: 'Buy and sell crypto', body: 'Move between naira and supported tokens from one clear, easy-to-review balance.' },
+  { icon: Send, number: '03', title: 'Send by username', body: 'Pay another Masanawa user with their @username—no long wallet address to copy.' },
+  { icon: RefreshCcw, number: '04', title: 'Convert to naira', body: 'Turn received crypto into NGN when you are ready, with the rate shown before you confirm.' },
+  { icon: ArrowDownToLine, number: '05', title: 'Withdraw to your bank', body: 'Send your available NGN balance to a supported Nigerian bank account.' },
+  { icon: Smartphone, number: '06', title: 'One money app', body: 'See funding, trades, transfers, conversions, and withdrawals in one activity timeline.' },
 ]
 
-export const FEATURES = [
-  {
-    icon: Layers,
-    title: 'One wallet, every chain',
-    body: 'Manage Ethereum, Base, Arbitrum, Optimism, BNB Chain, Solana, and TRON side by side in a single unified portfolio.',
-  },
-  {
-    icon: KeyRound,
-    title: 'True self-custody',
-    body: 'Your private keys are generated and stored on-device, encrypted at rest. We never see them, and neither does anyone else.',
-  },
-  {
-    icon: Send,
-    title: 'Send anything, instantly',
-    body: 'Transfer native coins and tokens — ERC-20, SPL, and TRC-20 — with live fee estimates before you confirm.',
-  },
-  {
-    icon: Activity,
-    title: 'Live activity tracking',
-    body: 'Every transaction is recorded and monitored from pending to confirmed, so you always know exactly where funds are.',
-  },
-  {
-    icon: ScanFace,
-    title: 'Biometric + PIN lock',
-    body: 'Unlock with Face ID, Touch ID, or a PIN. Auto-lock keeps your vault sealed the moment you step away.',
-  },
-  {
-    icon: Radar,
-    title: 'Real-time balances',
-    body: 'Prices and balances refresh automatically across every network, valued in the currency you choose.',
-  },
-] as const
-
-export const STEPS = [
-  {
-    label: 'STEP 01',
-    title: 'Create or import',
-    body: 'Spin up a fresh multi-chain wallet in seconds, or import an existing seed phrase. Everything happens on your device.',
-  },
-  {
-    label: 'STEP 02',
-    title: 'Secure it',
-    body: 'Set a PIN and enable biometrics. Your recovery phrase is encrypted locally and never uploaded anywhere.',
-  },
-  {
-    label: 'STEP 03',
-    title: 'Send & track',
-    body: 'Move tokens across any supported chain and watch each transfer confirm in your live activity feed.',
-  },
-] as const
+export const MONEY_FLOW = [
+  { step: '01', label: 'Fund', detail: 'Transfer naira to your virtual account', icon: Banknote },
+  { step: '02', label: 'Buy', detail: 'Choose a token and review your rate', icon: CircleDollarSign },
+  { step: '03', label: 'Send', detail: 'Pay any Masanawa @username', icon: Send },
+  { step: '04', label: 'Cash out', detail: 'Convert to NGN and withdraw', icon: ArrowDownToLine },
+]
 
 export const SECURITY_POINTS = [
-  {
-    icon: ShieldCheck,
-    title: 'Non-custodial by design',
-    body: 'You hold the keys. Masanawa can never freeze, move, or access your funds.',
-  },
-  {
-    icon: Wallet,
-    title: 'Encrypted on-device vault',
-    body: 'Keys and seed phrases are encrypted with device-level security and never leave your phone.',
-  },
-  {
-    icon: ScanFace,
-    title: 'Auto-lock & biometrics',
-    body: 'Sessions lock automatically and require Face ID, Touch ID, or a PIN to reopen.',
-  },
-] as const
+  { icon: UserRoundCheck, title: 'Verified accounts', body: 'Identity and account checks help keep naira funding and withdrawals connected to the right person.' },
+  { icon: KeyRound, title: 'Protected access', body: 'Secure sign-in, device controls, and transaction confirmation protect sensitive actions.' },
+  { icon: Eye, title: 'Review before you move money', body: 'See the recipient, amount, rate, and applicable fee before you approve a transaction.' },
+  { icon: ShieldCheck, title: 'Clear activity records', body: 'Track deposits, trades, username transfers, conversions, and withdrawals in one place.' },
+]
 
 export const ASSETS = [
-  { symbol: 'ETH', name: 'Ethereum' },
-  { symbol: 'SOL', name: 'Solana' },
-  { symbol: 'BNB', name: 'BNB' },
-  { symbol: 'TRX', name: 'TRON' },
-  { symbol: 'USDC', name: 'USD Coin' },
-  { symbol: 'USDT', name: 'Tether' },
-  { symbol: 'DAI', name: 'Dai' },
-  { symbol: 'ARB', name: 'Arbitrum' },
+  { symbol: 'NGN', name: 'Nigerian Naira', tone: '₦' },
+  { symbol: 'USDT', name: 'Tether', tone: '₮' },
+  { symbol: 'USDC', name: 'USD Coin', tone: '$' },
+  { symbol: 'BTC', name: 'Bitcoin', tone: '₿' },
+  { symbol: 'ETH', name: 'Ethereum', tone: 'Ξ' },
+  { symbol: 'SOL', name: 'Solana', tone: 'S' },
 ]
 
 export const FAQS = [
-  {
-    q: 'Is Masanawa really non-custodial?',
-    a: 'Yes. Your private keys are generated and stored only on your device. We have no servers that hold your keys or funds, which means you are always in full control.',
-  },
-  {
-    q: 'Which blockchains are supported?',
-    a: 'Masanawa supports Ethereum, Base, Arbitrum, Optimism, BNB Chain, Solana, and TRON today, with more networks added regularly.',
-  },
-  {
-    q: 'What happens if I lose my phone?',
-    a: 'Your recovery phrase is the master backup. As long as you have saved it securely, you can restore your entire wallet on a new device in minutes.',
-  },
-  {
-    q: 'Does it cost anything to use?',
-    a: 'Masanawa is free to download and use. You only ever pay the standard network (gas) fees required by each blockchain to process your transactions.',
-  },
-  {
-    q: 'Can I send both coins and tokens?',
-    a: 'Absolutely. You can send native assets as well as ERC-20, SPL, and TRC-20 tokens, with a clear fee estimate shown before every transfer.',
-  },
-] as const
+  { q: 'How do I fund my Masanawa account?', a: 'Open your NGN wallet to view your dedicated virtual account details, then make a bank transfer from an account in your name. Your available balance updates after the transfer is confirmed.' },
+  { q: 'Can I send crypto without a wallet address?', a: 'Yes. You can send supported assets to another Masanawa user with their unique @username. Always review the username and amount before confirming.' },
+  { q: 'How do I turn received crypto into naira?', a: 'Select the asset, choose Sell or Convert, review the displayed rate and fee, and confirm. The resulting NGN appears in your naira balance and can be withdrawn to a supported bank.' },
+  { q: 'How do withdrawals work?', a: 'Add or select a Nigerian bank account in your name, enter the amount, review the details, and confirm. Processing times can vary by bank and service availability.' },
+  { q: 'What rates and fees will I pay?', a: 'Masanawa shows the applicable conversion rate and fee before you confirm a buy, sell, transfer, or withdrawal. Blockchain network fees may also apply to external wallet transfers.' },
+  { q: 'Is crypto risk-free?', a: 'No. Crypto prices can move significantly and transactions can be irreversible. Review every transaction carefully and only use funds you can afford to expose to market risk.' },
+]
+
+export const TRUST_POINTS = ['Virtual NGN account', 'Username transfers', 'Rates shown before confirmation', 'Nigerian bank withdrawals']
+export const VERIFIED_LABEL = { icon: BadgeCheck, text: 'Built for everyday money movement in Nigeria' }

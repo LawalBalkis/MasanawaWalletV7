@@ -2,45 +2,10 @@ import { SECURITY_POINTS } from './data'
 
 export function Security() {
   return (
-    <section id="security" className="border-y border-border bg-secondary/40">
-      <div className="mx-auto grid max-w-6xl gap-12 px-4 py-20 sm:px-6 lg:grid-cols-2 lg:gap-16 lg:py-28">
-        <div className="lg:sticky lg:top-24 lg:self-start">
-          <span className="font-mono text-xs uppercase tracking-widest text-primary">Security</span>
-          <h2 className="mt-4 text-balance text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-            Built so that only you can ever touch your funds.
-          </h2>
-          <p className="mt-4 text-pretty text-lg leading-relaxed text-muted-foreground">
-            Masanawa is non-custodial to its core. There is no account we can freeze and no key we
-            can hand over — because your keys live only on your device.
-          </p>
-          <dl className="mt-8 grid grid-cols-2 gap-6">
-            <div>
-              <dt className="text-3xl font-semibold text-foreground">0</dt>
-              <dd className="mt-1 text-sm text-muted-foreground">Keys stored on our servers</dd>
-            </div>
-            <div>
-              <dt className="text-3xl font-semibold text-foreground">7</dt>
-              <dd className="mt-1 text-sm text-muted-foreground">Chains, one secure vault</dd>
-            </div>
-          </dl>
-        </div>
-
-        <div className="flex flex-col gap-4">
-          {SECURITY_POINTS.map((p) => (
-            <div
-              key={p.title}
-              className="flex gap-4 rounded-2xl border border-border bg-card p-6"
-            >
-              <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-accent text-accent-foreground">
-                <p.icon className="size-5" />
-              </span>
-              <div>
-                <h3 className="text-base font-semibold text-foreground">{p.title}</h3>
-                <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{p.body}</p>
-              </div>
-            </div>
-          ))}
-        </div>
+    <section id="security" className="scroll-mt-20 border-b border-border">
+      <div className="mx-auto grid max-w-7xl gap-12 px-4 py-20 sm:px-8 lg:grid-cols-[0.85fr_1.15fr] lg:gap-20 lg:px-12 lg:py-28">
+        <div><span className="font-mono text-xs uppercase tracking-[0.2em] text-primary">Account safety</span><h2 className="mt-5 text-balance text-4xl font-semibold tracking-[-0.035em] text-foreground sm:text-5xl">Control that stays visible at every step.</h2><p className="mt-5 text-pretty text-lg leading-relaxed text-muted-foreground">From bank funding to a final withdrawal, Masanawa gives you clear transaction details and protected confirmation points.</p><div className="mt-10 border-l-2 border-primary pl-5"><p className="text-sm font-semibold text-foreground">Check. Review. Confirm.</p><p className="mt-2 text-sm leading-relaxed text-muted-foreground">Crypto transfers can be irreversible. We make the important details easy to see before money moves.</p></div></div>
+        <div className="grid sm:grid-cols-2">{SECURITY_POINTS.map((point) => <article key={point.title} className="border border-border bg-card p-6 sm:p-8"><span className="flex size-11 items-center justify-center rounded-xl bg-accent text-accent-foreground"><point.icon className="size-5" /></span><h3 className="mt-8 text-lg font-semibold text-foreground">{point.title}</h3><p className="mt-3 text-sm leading-relaxed text-muted-foreground">{point.body}</p></article>)}</div>
       </div>
     </section>
   )

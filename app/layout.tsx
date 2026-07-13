@@ -7,9 +7,9 @@ const geistSans = Geist({ subsets: ['latin'], variable: '--font-geist-sans' })
 const geistMono = Geist_Mono({ subsets: ['latin'], variable: '--font-geist-mono' })
 
 export const metadata: Metadata = {
-  title: 'Masanawa — The self-custody wallet for every chain',
+  title: 'Masanawa — Buy, sell and send crypto in Nigeria',
   description:
-    'Masanawa is a non-custodial, multi-chain crypto wallet. Hold, send, and track assets across Ethereum, Base, Arbitrum, Optimism, BNB, Solana, and TRON — with keys that never leave your device.',
+    'Fund with a virtual NGN account, buy and sell crypto, send to a Masanawa username, convert to naira, and withdraw to your Nigerian bank.',
   generator: 'v0.app',
   icons: {
     icon: [
@@ -22,17 +22,13 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  colorScheme: 'light',
-  themeColor: '#ffffff',
+  colorScheme: 'dark',
+  themeColor: '#101a25',
 }
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode
-}>) {
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`light ${geistSans.variable} ${geistMono.variable}`}>
+    <html lang="en-NG" className={`dark bg-background ${geistSans.variable} ${geistMono.variable}`}>
       <body className="bg-background font-sans antialiased">
         {children}
         {process.env.NODE_ENV === 'production' && <Analytics />}

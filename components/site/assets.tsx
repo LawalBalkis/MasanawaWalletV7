@@ -2,36 +2,10 @@ import { ASSETS } from './data'
 
 export function Assets() {
   return (
-    <section className="border-y border-border bg-secondary/40">
-      <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6 lg:py-28">
-        <div className="flex flex-col items-start justify-between gap-6 lg:flex-row lg:items-end">
-          <div className="max-w-2xl">
-            <span className="font-mono text-xs uppercase tracking-widest text-primary">Assets</span>
-            <h2 className="mt-4 text-balance text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-              Coins and tokens, all in one place.
-            </h2>
-            <p className="mt-4 text-pretty text-lg leading-relaxed text-muted-foreground">
-              Hold native assets alongside popular stablecoins and ERC-20, SPL, and TRC-20 tokens.
-            </p>
-          </div>
-        </div>
-
-        <ul className="mt-12 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-          {ASSETS.map((a) => (
-            <li
-              key={a.symbol}
-              className="flex items-center gap-3 rounded-xl border border-border bg-card p-4"
-            >
-              <span className="flex size-10 items-center justify-center rounded-full bg-accent font-mono text-xs font-semibold text-accent-foreground">
-                {a.symbol.slice(0, 3)}
-              </span>
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-foreground">{a.symbol}</p>
-                <p className="truncate text-xs text-muted-foreground">{a.name}</p>
-              </div>
-            </li>
-          ))}
-        </ul>
+    <section className="border-b border-border bg-secondary">
+      <div className="mx-auto max-w-7xl px-4 py-20 sm:px-8 lg:px-12 lg:py-24">
+        <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-end"><div className="max-w-2xl"><span className="font-mono text-xs uppercase tracking-[0.2em] text-primary">Balances that work together</span><h2 className="mt-5 text-balance text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">Naira at the centre. Crypto within reach.</h2></div><p className="max-w-md text-sm leading-relaxed text-muted-foreground">Availability can vary by asset, network, account status, and market conditions.</p></div>
+        <ul className="mt-10 grid grid-cols-2 border-l border-t border-border sm:grid-cols-3 lg:grid-cols-6">{ASSETS.map((asset) => <li key={asset.symbol} className="border-b border-r border-border bg-card p-5"><span className="flex size-10 items-center justify-center rounded-full bg-accent font-mono text-sm font-bold text-accent-foreground">{asset.tone}</span><p className="mt-5 text-base font-semibold text-foreground">{asset.symbol}</p><p className="mt-1 text-xs text-muted-foreground">{asset.name}</p></li>)}</ul>
       </div>
     </section>
   )
