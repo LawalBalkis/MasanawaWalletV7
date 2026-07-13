@@ -1,4 +1,5 @@
 import { ArrowRight, BadgeCheck } from 'lucide-react'
+import Link from 'next/link'
 
 const CTA_POINTS = ['Personal virtual NGN account', 'Send with a @username', 'Withdraw to a Nigerian bank']
 
@@ -19,13 +20,13 @@ export function DownloadCta() {
           rates and fees shown before every confirmation.
         </p>
         <div className="relative mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-          <a
-            href="#top"
+          <Link
+            href="/dashboard"
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-7 py-3.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 focus-visible:outline-2"
           >
             Get started
             <ArrowRight className="size-4" />
-          </a>
+          </Link>
           <a
             href="#faq"
             className="inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-background px-7 py-3.5 text-sm font-semibold text-foreground transition-colors hover:bg-secondary focus-visible:outline-2"
