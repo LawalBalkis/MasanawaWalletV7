@@ -15,9 +15,9 @@ export default function Page() {
       <main>
         <Hero />
         <Features />
-        <Security />
         <HowItWorks />
         <Assets />
+        <Security />
         <DownloadCta />
         <Faq />
       </main>
