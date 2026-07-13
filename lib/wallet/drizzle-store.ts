@@ -11,6 +11,7 @@ import { and, desc, eq, sql } from 'drizzle-orm'
 import type { AssetSymbol, Beneficiary, TxType, WalletNotification, WalletTx } from './assets'
 import { computeBalances, type Balances } from './ledger'
 import type {
+  FundingCredit,
   FundingRecord,
   LedgerTx,
   NewUser,
@@ -198,20 +199,45 @@ export class DrizzleWalletStore implements WalletStore {
     return computeBalances(await this.listTransactions(userId))
   }
 
-  async recordFunding(record: FundingRecord) {
-    const inserted = await getDb()
-      .insert(fundings)
-      .values({
-        transactionRef: record.transactionRef,
-        accountReference: record.accountReference,
-        amount: record.amount,
-        payerName: record.payerName,
-        payerAccountNumber: record.payerAccountNumber,
-        receivedAt: new Date(record.receivedAt),
-      })
-      .onConflictDoNothing()
-      .returning({ ref: fundings.transactionRef })
-    return inserted.length > 0
+  async recordFunding(record: FundingRecord, credit: FundingCredit) {
+    // Atomic: the idempotency row and the NGN ledger credit are inserted in a
+    // single transaction. If either fails, neither is committed, so Billstack's
+    // retry can safely re-attempt without double-crediting.
+    return await getDb().transaction(async (tx) => {
+      const inserted = await tx
+        .insert(fundings)
+        .values({
+          transactionRef: record.transactionRef,
+          accountReference: record.accountReference,
+          amount: record.amount,
+          payerName: record.payerName,
+          payerAccountNumber: record.payerAccountNumber,
+          receivedAt: new Date(record.receivedAt),
+        })
+        .onConflictDoNothing()
+        .returning({ ref: fundings.transactionRef })
+
+      if (inserted.length === 0) return false
+
+      await tx
+        .insert(transactions)
+        .values({
+          id: credit.txId,
+          userId: credit.userId,
+          type: 'fund',
+          asset: 'NGN',
+          amount: record.amount,
+          ngnValue: record.amount,
+          feeNgn: 0,
+          counterparty: record.payerName,
+          note: credit.note ?? `Bank deposit from ${record.payerName}`,
+          status: 'completed',
+          createdAt: new Date(record.receivedAt),
+        })
+        .onConflictDoNothing()
+
+      return true
+    })
   }
 
   async hasFunding(transactionRef: string) {

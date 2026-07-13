@@ -104,6 +104,21 @@ export interface FundingRecord {
   receivedAt: string
 }
 
+/**
+ * Details needed to credit a user's NGN balance when a funding is newly
+ * recorded. Passed alongside the FundingRecord so the idempotency log and the
+ * ledger credit are written atomically — a funding can never be logged without
+ * its matching ledger row (which would silently swallow a customer's money).
+ */
+export interface FundingCredit {
+  /** The user who owns the virtual account. */
+  userId: string
+  /** Ledger transaction id to create. Deterministic for dedupe safety. */
+  txId: string
+  /** Optional note for the ledger row / notification. */
+  note?: string
+}
+
 // ---------------------------------------------------------------------------
 // The store contract
 // ---------------------------------------------------------------------------
@@ -128,8 +143,8 @@ export interface WalletStore {
   getTransaction(userId: string, id: string): Promise<WalletTx | null>
   getBalances(userId: string): Promise<Balances>
 
-  // Fundings (Billstack webhook idempotency log)
-  recordFunding(record: FundingRecord): Promise<boolean>
+  // Fundings (Billstack webhook idempotency log + atomic NGN credit)
+  recordFunding(record: FundingRecord, credit: FundingCredit): Promise<boolean>
   hasFunding(transactionRef: string): Promise<boolean>
   listFundings(accountReference: string): Promise<FundingRecord[]>
   getFundedTotal(accountReference: string): Promise<number>
@@ -378,10 +393,24 @@ class InMemoryWalletStore implements WalletStore {
     return computeBalances(await this.listTransactions(userId))
   }
 
-  async recordFunding(record: FundingRecord) {
+  async recordFunding(record: FundingRecord, credit: FundingCredit) {
     const s = getState()
     if (s.fundings.has(record.transactionRef)) return false
+    // Log the funding AND credit the ledger together — balances are derived
+    // from ledger rows, so a funding without a 'fund' row would never appear.
     s.fundings.set(record.transactionRef, record)
+    s.transactions.push({
+      id: credit.txId,
+      userId: credit.userId,
+      type: 'fund',
+      asset: 'NGN',
+      amount: record.amount,
+      ngnValue: record.amount,
+      counterparty: record.payerName,
+      note: credit.note ?? `Bank deposit from ${record.payerName}`,
+      status: 'completed',
+      date: record.receivedAt,
+    })
     return true
   }
 
