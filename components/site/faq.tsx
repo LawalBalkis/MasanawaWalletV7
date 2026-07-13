@@ -11,7 +11,7 @@ export function Faq() {
   return (
     <section id="faq" className="scroll-mt-20 border-b border-border">
       <div className="mx-auto grid max-w-7xl gap-10 px-4 py-16 sm:px-8 lg:grid-cols-[0.4fr_0.6fr] lg:gap-16 lg:px-12 lg:py-20">
-        <div className="lg:sticky lg:top-24 lg:self-start">
+        <div className="flex flex-col items-center text-center lg:sticky lg:top-24 lg:items-start lg:self-start lg:text-left">
           <span className="font-mono text-xs uppercase tracking-[0.2em] text-primary">System / FAQ</span>
           <h2 className="mt-4 text-balance text-3xl font-semibold tracking-[-0.03em] text-foreground sm:text-4xl">
             Questions, answered.
