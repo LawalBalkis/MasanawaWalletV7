@@ -13,6 +13,7 @@ import {
   formatNgn,
   resolveBankAccount,
 } from '@/lib/wallet/demo-data'
+import { formatLimit, getCurrentUserTier } from '@/lib/wallet/tiers'
 import { useState } from 'react'
 
 const BANKS = [
@@ -37,12 +38,15 @@ export default function WithdrawPage() {
   const [amount, setAmount] = useState('')
   const { toast } = useToast()
 
+  const tier = getCurrentUserTier()
   const ngnBalance = assetBySymbol('NGN').balance
   const amt = Number(amount) || 0
   const fee = FEES.withdrawNgn
   const validAccount = /^\d{10}$/.test(accountNumber)
   const accountName = validAccount ? resolveBankAccount(bank, accountNumber) : null
-  const valid = validAccount && !!accountName && amt >= 500 && amt + fee <= ngnBalance
+  const withinTierLimit = tier.singleWithdrawalNgn === null || amt <= tier.singleWithdrawalNgn
+  const valid =
+    validAccount && !!accountName && amt >= 500 && amt + fee <= ngnBalance && withinTierLimit
 
   function selectBeneficiary(id: string) {
     const ben = DEMO_BENEFICIARIES.find((b) => b.id === id)
@@ -210,9 +214,17 @@ export default function WithdrawPage() {
             className="h-10 rounded-lg border border-input bg-background px-3 font-mono text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
           />
           <p className="text-xs text-muted-foreground">
-            Minimum {formatNgn(500)} · Fee {formatNgn(fee)}
+            Minimum {formatNgn(500)} · Fee {formatNgn(fee)} · {tier.name.split(' — ')[0]} limit{' '}
+            {formatLimit(tier.singleWithdrawalNgn)} per withdrawal
           </p>
         </div>
+
+        {!withinTierLimit && amt > 0 && (
+          <p className="text-xs text-destructive" role="alert">
+            Amount exceeds your {formatLimit(tier.singleWithdrawalNgn)} single-withdrawal limit on{' '}
+            {tier.name.split(' — ')[0]}. Upgrade your verification tier in Settings to raise it.
+          </p>
+        )}
 
         {amt + fee > ngnBalance && amt > 0 && (
           <p className="text-xs text-destructive" role="alert">

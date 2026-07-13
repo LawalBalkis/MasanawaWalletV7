@@ -5,7 +5,8 @@ import { FlowHeader } from '@/components/wallet/flow-header'
 import { PinDialog } from '@/components/wallet/pin-dialog'
 import { useToast } from '@/components/wallet/toast'
 import { DEMO_BENEFICIARIES, DEMO_USER } from '@/lib/wallet/demo-data'
-import { Landmark, Trash2 } from 'lucide-react'
+import { VERIFICATION_TIERS, formatLimit, getCurrentUserTier } from '@/lib/wallet/tiers'
+import { BadgeCheck, Landmark, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 
 function Section({
@@ -73,6 +74,96 @@ function Toggle({
         />
       </button>
     </div>
+  )
+}
+
+function VerificationTierSection() {
+  const { toast } = useToast()
+  const current = getCurrentUserTier()
+  const tiers = Object.values(VERIFICATION_TIERS)
+
+  return (
+    <Section
+      title="Verification tier"
+      description="Your tier sets your withdrawal limits and what you can do with your wallet. Upgrade by completing extra verification."
+    >
+      <div className="flex flex-col gap-3">
+        {tiers.map((tier) => {
+          const isCurrent = tier.id === current.id
+          const isNext = tier.id === current.id + 1
+          return (
+            <div
+              key={tier.id}
+              className={`flex flex-col gap-3 rounded-xl border p-4 ${
+                isCurrent ? 'border-primary bg-accent/40' : 'border-border'
+              }`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+                    {tier.name}
+                    {isCurrent && (
+                      <BadgeCheck className="size-4 text-primary" aria-hidden="true" />
+                    )}
+                  </p>
+                  <p className="text-xs text-muted-foreground">{tier.requirement}</p>
+                </div>
+                {isCurrent ? (
+                  <span className="shrink-0 rounded-full bg-primary px-2.5 py-0.5 text-xs font-medium text-primary-foreground">
+                    Current
+                  </span>
+                ) : isNext ? (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() =>
+                      toast(
+                        'Verification coming soon',
+                        `${tier.name.split(' — ')[0]} upgrade will be available once identity checks launch.`,
+                        'info',
+                      )
+                    }
+                  >
+                    Upgrade
+                  </Button>
+                ) : null}
+              </div>
+              <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs sm:grid-cols-4">
+                <div>
+                  <dt className="text-muted-foreground">Per withdrawal</dt>
+                  <dd className="font-mono font-medium text-foreground">
+                    {formatLimit(tier.singleWithdrawalNgn)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Daily bank</dt>
+                  <dd className="font-mono font-medium text-foreground">
+                    {formatLimit(tier.dailyWithdrawalNgn)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Daily crypto</dt>
+                  <dd className="font-mono font-medium text-foreground">
+                    {formatLimit(tier.dailyCryptoWithdrawalNgn)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Max balance</dt>
+                  <dd className="font-mono font-medium text-foreground">
+                    {formatLimit(tier.maxBalanceNgn)}
+                  </dd>
+                </div>
+              </dl>
+              <p className="text-xs text-muted-foreground">
+                {tier.capabilities.withdrawCrypto
+                  ? 'Includes crypto withdrawals to external wallets.'
+                  : 'Crypto withdrawals not available on this tier.'}
+              </p>
+            </div>
+          )
+        })}
+      </div>
+    </Section>
   )
 }
 
@@ -174,6 +265,8 @@ export default function SettingsPage() {
           </div>
         </form>
       </Section>
+
+      <VerificationTierSection />
 
       <Section
         title="Security"
