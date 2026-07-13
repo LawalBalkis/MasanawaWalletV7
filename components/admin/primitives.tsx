@@ -61,7 +61,14 @@ export function TierBadge({ tier }: { tier: TierId }) {
   )
 }
 
-export function RoleBadge({ role }: { role: 'user' | 'admin' }) {
+export function RoleBadge({ role }: { role: 'user' | 'admin' | 'superadmin' }) {
+  if (role === 'superadmin') {
+    return (
+      <span className="inline-flex items-center rounded-full bg-accent px-2 py-0.5 text-xs font-medium text-accent-foreground">
+        Super Admin
+      </span>
+    )
+  }
   if (role !== 'admin') return null
   return (
     <span className="inline-flex items-center rounded-full bg-accent px-2 py-0.5 text-xs font-medium text-accent-foreground">
@@ -78,6 +85,12 @@ const ACTION_LABELS: Record<string, string> = {
   'user.email_verify': 'Verified email',
   'balance.credit': 'Credited wallet',
   'balance.debit': 'Debited wallet',
+  'config.update': 'Updated platform config',
+  'user.role': 'Changed user role',
+  'user.force_signout': 'Forced sign-out',
+  'announcement.broadcast': 'Broadcast announcement',
+  'funding.reassign': 'Reassigned funding',
+  'funding.refund': 'Refunded funding',
 }
 
 export function auditActionLabel(action: string): string {
@@ -103,6 +116,18 @@ export function auditDetailSummary(action: string, detail: string | null): strin
   }
   if (action === 'user.email_verify' && typeof parsed.email === 'string') {
     return parsed.email
+  }
+  if (action === 'user.role' && 'from' in parsed && 'to' in parsed) {
+    return `${parsed.from} → ${parsed.to}${reason ? ` · ${reason}` : ''}`
+  }
+  if (action === 'announcement.broadcast' && 'title' in parsed) {
+    return `${parsed.title}${'recipientCount' in parsed ? ` · ${parsed.recipientCount} recipients` : ''}`
+  }
+  if ((action === 'funding.reassign' || action === 'funding.refund') && 'transactionRef' in parsed) {
+    return String(parsed.transactionRef)
+  }
+  if (action === 'config.update') {
+    return Object.keys(parsed).join(', ')
   }
   return reason ?? ''
 }

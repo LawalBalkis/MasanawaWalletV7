@@ -14,6 +14,7 @@ import type {
   AdminAuditEntry,
   AdminFunding,
   AdminLedgerTx,
+  AuditListOptions,
   AuthTokenKind,
   AuthTokenRecord,
   FundingCredit,
@@ -27,6 +28,7 @@ import type {
   ReferralRecord,
   ReferralStats,
   SessionRecord,
+  TransactionListOptions,
   UserListOptions,
   UserPatch,
   UserRecord,
@@ -47,6 +49,7 @@ const {
   adminAuditLog,
   referrals,
   rateLimits,
+  platformSettings,
 } = schema
 
 type ReferralRow = typeof referrals.$inferSelect
@@ -658,13 +661,32 @@ export class DrizzleWalletStore implements WalletStore {
     return row?.count ?? 0
   }
 
-  async listAllTransactions(opts?: { limit?: number; offset?: number }): Promise<AdminLedgerTx[]> {
+  async listAllTransactions(opts?: TransactionListOptions): Promise<AdminLedgerTx[]> {
     let q = getDb()
       .select({ tx: transactions, username: users.username, userName: users.name })
       .from(transactions)
       .innerJoin(users, eq(transactions.userId, users.id))
       .orderBy(desc(transactions.createdAt))
       .$dynamic()
+    const conditions = []
+    if (opts?.type) conditions.push(eq(transactions.type, opts.type))
+    if (opts?.asset) conditions.push(eq(transactions.asset, opts.asset))
+    if (opts?.status) conditions.push(eq(transactions.status, opts.status))
+    if (opts?.userId) conditions.push(eq(transactions.userId, opts.userId))
+    if (opts?.from) conditions.push(sql`${transactions.createdAt} >= ${opts.from}`)
+    if (opts?.to) conditions.push(sql`${transactions.createdAt} <= ${opts.to}`)
+    if (opts?.search) {
+      const like = `%${opts.search}%`
+      conditions.push(
+        or(
+          ilike(transactions.id, like),
+          ilike(transactions.counterparty, like),
+          ilike(transactions.note, like),
+          ilike(users.username, like),
+        )!,
+      )
+    }
+    if (conditions.length > 0) q = q.where(and(...conditions))
     if (opts?.limit != null) q = q.limit(opts.limit)
     if (opts?.offset != null) q = q.offset(opts.offset)
     const rows = await q
@@ -674,6 +696,35 @@ export class DrizzleWalletStore implements WalletStore {
       username: r.username,
       userName: r.userName,
     }))
+  }
+
+  async countAllTransactions(opts?: TransactionListOptions): Promise<number> {
+    let q = getDb()
+      .select({ count: sql<number>`count(*)::int` })
+      .from(transactions)
+      .innerJoin(users, eq(transactions.userId, users.id))
+      .$dynamic()
+    const conditions = []
+    if (opts?.type) conditions.push(eq(transactions.type, opts.type))
+    if (opts?.asset) conditions.push(eq(transactions.asset, opts.asset))
+    if (opts?.status) conditions.push(eq(transactions.status, opts.status))
+    if (opts?.userId) conditions.push(eq(transactions.userId, opts.userId))
+    if (opts?.from) conditions.push(sql`${transactions.createdAt} >= ${opts.from}`)
+    if (opts?.to) conditions.push(sql`${transactions.createdAt} <= ${opts.to}`)
+    if (opts?.search) {
+      const like = `%${opts.search}%`
+      conditions.push(
+        or(
+          ilike(transactions.id, like),
+          ilike(transactions.counterparty, like),
+          ilike(transactions.note, like),
+          ilike(users.username, like),
+        )!,
+      )
+    }
+    if (conditions.length > 0) q = q.where(and(...conditions))
+    const [row] = await q
+    return row?.count ?? 0
   }
 
   async listAllFundings(opts?: { limit?: number; offset?: number }): Promise<AdminFunding[]> {
@@ -735,17 +786,36 @@ export class DrizzleWalletStore implements WalletStore {
         action: entry.action,
         targetUserId: entry.targetUserId ?? null,
         detail: entry.detail ?? null,
+        ip: entry.ip ?? null,
+        userAgent: entry.userAgent ?? null,
       })
   }
 
-  async listAuditLog(opts?: { limit?: number; targetUserId?: string }): Promise<AdminAuditEntry[]> {
+  async listAuditLog(opts?: AuditListOptions): Promise<AdminAuditEntry[]> {
     let q = getDb()
       .select()
       .from(adminAuditLog)
-      .where(opts?.targetUserId ? eq(adminAuditLog.targetUserId, opts.targetUserId) : undefined)
       .orderBy(desc(adminAuditLog.createdAt))
       .$dynamic()
+    const conditions = []
+    if (opts?.actorId) conditions.push(eq(adminAuditLog.actorId, opts.actorId))
+    if (opts?.action) conditions.push(eq(adminAuditLog.action, opts.action))
+    if (opts?.targetUserId) conditions.push(eq(adminAuditLog.targetUserId, opts.targetUserId))
+    if (opts?.from) conditions.push(sql`${adminAuditLog.createdAt} >= ${opts.from}`)
+    if (opts?.to) conditions.push(sql`${adminAuditLog.createdAt} <= ${opts.to}`)
+    if (opts?.search) {
+      const like = `%${opts.search}%`
+      conditions.push(
+        or(
+          ilike(adminAuditLog.actorName, like),
+          ilike(adminAuditLog.action, like),
+          ilike(adminAuditLog.detail, like),
+        )!,
+      )
+    }
+    if (conditions.length > 0) q = q.where(and(...conditions))
     if (opts?.limit != null) q = q.limit(opts.limit)
+    if (opts?.offset != null) q = q.offset(opts.offset)
     const rows = await q
     return rows.map((r) => ({
       id: r.id,
@@ -754,7 +824,152 @@ export class DrizzleWalletStore implements WalletStore {
       action: r.action,
       targetUserId: r.targetUserId ?? null,
       detail: r.detail ?? null,
+      ip: r.ip ?? null,
+      userAgent: r.userAgent ?? null,
       createdAt: r.createdAt.toISOString(),
     }))
+  }
+
+  async countAuditLog(opts?: AuditListOptions): Promise<number> {
+    let q = getDb()
+      .select({ count: sql<number>`count(*)::int` })
+      .from(adminAuditLog)
+      .$dynamic()
+    const conditions = []
+    if (opts?.actorId) conditions.push(eq(adminAuditLog.actorId, opts.actorId))
+    if (opts?.action) conditions.push(eq(adminAuditLog.action, opts.action))
+    if (opts?.targetUserId) conditions.push(eq(adminAuditLog.targetUserId, opts.targetUserId))
+    if (opts?.from) conditions.push(sql`${adminAuditLog.createdAt} >= ${opts.from}`)
+    if (opts?.to) conditions.push(sql`${adminAuditLog.createdAt} <= ${opts.to}`)
+    if (opts?.search) {
+      const like = `%${opts.search}%`
+      conditions.push(
+        or(
+          ilike(adminAuditLog.actorName, like),
+          ilike(adminAuditLog.action, like),
+          ilike(adminAuditLog.detail, like),
+        )!,
+      )
+    }
+    if (conditions.length > 0) q = q.where(and(...conditions))
+    const [row] = await q
+    return row?.count ?? 0
+  }
+
+  async getPlatformSetting(key: string) {
+    const [row] = await getDb()
+      .select()
+      .from(platformSettings)
+      .where(eq(platformSettings.key, key))
+      .limit(1)
+    return row ? row.value : null
+  }
+
+  async setPlatformSetting(key: string, value: unknown, updatedBy: string) {
+    await getDb()
+      .insert(platformSettings)
+      .values({ key, value: value as any, updatedBy, updatedAt: new Date() })
+      .onConflictDoUpdate({
+        target: platformSettings.key,
+        set: { value: value as any, updatedBy, updatedAt: new Date() },
+      })
+  }
+
+  async getAllPlatformSettings() {
+    const rows = await getDb().select().from(platformSettings)
+    return rows.map((r) => ({ key: r.key, value: r.value }))
+  }
+
+  async getFeeRevenueReport(from?: Date, to?: Date) {
+    let q = getDb()
+      .select({
+        asset: transactions.asset,
+        totalFeesNgn: sql<number>`coalesce(sum(${transactions.feeNgn}), 0)::float8`,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(transactions)
+      .groupBy(transactions.asset)
+      .$dynamic()
+    const conditions = [sql`${transactions.feeNgn} > 0`]
+    if (from) conditions.push(sql`${transactions.createdAt} >= ${from}`)
+    if (to) conditions.push(sql`${transactions.createdAt} <= ${to}`)
+    q = q.where(and(...conditions))
+    return await q
+  }
+
+  async getLiabilitiesReport() {
+    const rows = await getDb()
+      .select({
+        asset: transactions.asset,
+        totalAmount: sql<number>`coalesce(sum(${transactions.amount}), 0)::float8`,
+        ngnValue: sql<number>`coalesce(sum(${transactions.ngnValue}), 0)::float8`,
+      })
+      .from(transactions)
+      .groupBy(transactions.asset)
+    return rows.map((r) => ({ asset: r.asset, totalAmount: Number(r.totalAmount), ngnValue: Number(r.ngnValue) }))
+  }
+
+  async getDailyFlowReport(days: number) {
+    const rows = await getDb()
+      .select({
+        date: sql<string>`to_char(${transactions.createdAt}::date, 'YYYY-MM-DD')`,
+        inflowNgn: sql<number>`coalesce(sum(${transactions.ngnValue}) filter (where ${transactions.amount} > 0), 0)::float8`,
+        outflowNgn: sql<number>`coalesce(sum(abs(${transactions.ngnValue}) filter (where ${transactions.amount} < 0), 0)::float8`,
+      })
+      .from(transactions)
+      .where(sql`${transactions.createdAt} >= now() - interval '${sql.raw(days.toString())} days'`)
+      .groupBy(sql`1`)
+      .orderBy(sql`1`)
+    return rows.map((r) => ({ date: r.date, inflowNgn: Number(r.inflowNgn), outflowNgn: Number(r.outflowNgn) }))
+  }
+
+  async forceSignOutUser(userId: string) {
+    await getDb().delete(sessions).where(eq(sessions.userId, userId))
+  }
+
+  async broadcastNotification(input: { title: string; body: string }) {
+    const allUsers = await getDb().select({ id: users.id }).from(users)
+    const db = getDb()
+    let count = 0
+    for (const u of allUsers) {
+      const id = `ntf_${crypto.randomUUID().replace(/-/g, '').slice(0, 20)}`
+      await db.insert(notifications).values({
+        id,
+        userId: u.id,
+        title: input.title,
+        body: input.body,
+      })
+      count += 1
+    }
+    return count
+  }
+
+  async reassignFunding(transactionRef: string, userId: string) {
+    const [funding] = await getDb()
+      .select()
+      .from(fundings)
+      .where(eq(fundings.transactionRef, transactionRef))
+      .limit(1)
+    if (!funding) return
+    const [user] = await getDb().select().from(users).where(eq(users.id, userId)).limit(1)
+    if (!user) return
+    const txId = `tx_${crypto.randomUUID().replace(/-/g, '').slice(0, 20)}`
+    await getDb().insert(transactions).values({
+      id: txId,
+      userId,
+      type: 'fund',
+      asset: 'NGN',
+      amount: funding.amount,
+      ngnValue: funding.amount,
+      feeNgn: 0,
+      counterparty: funding.payerName ?? undefined,
+      note: `Reassigned funding ${transactionRef}`,
+      status: 'completed',
+    })
+  }
+
+  async refundFunding(transactionRef: string) {
+    // Mark as refunded by deleting the funding record (it remains in audit log)
+    await getDb().delete(fundings).where(eq(fundings.transactionRef, transactionRef))
   }
 }

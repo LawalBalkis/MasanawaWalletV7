@@ -13,9 +13,11 @@
 import { generateId } from '@/lib/auth/crypto'
 import { requireAdmin } from '@/lib/auth/session'
 import { revalidatePath } from 'next/cache'
+import { headers } from 'next/headers'
 import { formatNgn } from './assets'
 import { walletStore } from './store'
 import { VERIFICATION_TIERS, type TierId } from './tiers'
+import { getPlatformConfig, setPlatformConfig, type PlatformConfig } from '@/lib/config'
 
 export interface AdminResult {
   ok: boolean
@@ -28,6 +30,14 @@ function fail(error: string): AdminResult {
 
 function refreshAdmin() {
   revalidatePath('/admin', 'layout')
+}
+
+async function getRequestInfo(): Promise<{ ip: string | null; userAgent: string | null }> {
+  const h = await headers()
+  const forwarded = h.get('x-forwarded-for')
+  const ip = forwarded ? forwarded.split(',')[0].trim() : null
+  const userAgent = h.get('user-agent') ?? null
+  return { ip, userAgent }
 }
 
 // ---------------------------------------------------------------------------
@@ -50,12 +60,15 @@ export async function setUserStatusAction(input: {
   }
 
   await walletStore.updateUser(target.id, { status: input.status })
+  const reqInfo = await getRequestInfo()
   await walletStore.addAuditLog({
     actorId: admin.id,
     actorName: admin.name,
     action: input.status === 'frozen' ? 'user.freeze' : 'user.unfreeze',
     targetUserId: target.id,
     detail: JSON.stringify({ reason: input.reason?.trim() || null }),
+    ip: reqInfo.ip,
+    userAgent: reqInfo.userAgent,
   })
   await walletStore.addNotification({
     userId: target.id,
@@ -86,12 +99,15 @@ export async function setUserTierAction(input: {
 
   const from = target.tier
   await walletStore.updateUser(target.id, { tier: input.tier as TierId })
+  const reqInfo = await getRequestInfo()
   await walletStore.addAuditLog({
     actorId: admin.id,
     actorName: admin.name,
     action: 'user.tier',
     targetUserId: target.id,
     detail: JSON.stringify({ from, to: input.tier, reason: input.reason?.trim() || null }),
+    ip: reqInfo.ip,
+    userAgent: reqInfo.userAgent,
   })
   await walletStore.addNotification({
     userId: target.id,
@@ -103,67 +119,69 @@ export async function setUserTierAction(input: {
 }
 
 // ---------------------------------------------------------------------------
-// Reset transaction PIN — clears the PIN so the user must set a new one on
-// their next sign-in (the dashboard redirects to /auth/pin when no PIN is set).
+// PIN reset
 // ---------------------------------------------------------------------------
 
-export async function resetUserPinAction(input: {
+export async function resetPinAction(input: {
   userId: string
   reason?: string
 }): Promise<AdminResult> {
   const admin = await requireAdmin()
   const target = await walletStore.getUserById(input.userId)
   if (!target) return fail('User not found.')
-  if (target.role === 'admin' && target.id !== admin.id) {
-    return fail('You cannot reset another admin’s PIN.')
-  }
-  if (!target.pinHash) return fail('This user has no PIN set.')
+  if (target.role === 'admin') return fail('Admin PINs cannot be reset by other admins.')
 
   await walletStore.updateUser(target.id, { pinHash: null })
+  const reqInfo = await getRequestInfo()
   await walletStore.addAuditLog({
     actorId: admin.id,
     actorName: admin.name,
     action: 'user.pin_reset',
     targetUserId: target.id,
     detail: JSON.stringify({ reason: input.reason?.trim() || null }),
+    ip: reqInfo.ip,
+    userAgent: reqInfo.userAgent,
   })
   await walletStore.addNotification({
     userId: target.id,
     title: 'Transaction PIN reset',
-    body: 'Your PIN was reset by support. You will be asked to set a new one next time you sign in.',
+    body: 'Your transaction PIN has been reset by an admin. Please set a new PIN to continue moving money.',
   })
   refreshAdmin()
   return { ok: true }
 }
 
 // ---------------------------------------------------------------------------
-// Manually mark a user's email verified (e.g. resolving a stuck sign-up).
+// Email verification (admin override)
 // ---------------------------------------------------------------------------
 
-export async function verifyUserEmailAction(input: { userId: string }): Promise<AdminResult> {
+export async function verifyEmailAction(input: {
+  userId: string
+}): Promise<AdminResult> {
   const admin = await requireAdmin()
   const target = await walletStore.getUserById(input.userId)
   if (!target) return fail('User not found.')
-  if (target.emailVerified) return fail('This email is already verified.')
 
   await walletStore.updateUser(target.id, { emailVerified: true })
+  const reqInfo = await getRequestInfo()
   await walletStore.addAuditLog({
     actorId: admin.id,
     actorName: admin.name,
     action: 'user.email_verify',
     targetUserId: target.id,
     detail: JSON.stringify({ email: target.email }),
+    ip: reqInfo.ip,
+    userAgent: reqInfo.userAgent,
   })
   refreshAdmin()
   return { ok: true }
 }
 
 // ---------------------------------------------------------------------------
-// Manual NGN balance adjustment (credit / debit). Writes a ledger row so the
-// user's derived balance updates, plus an audit entry and a notification.
+// Manual balance adjustment
 // ---------------------------------------------------------------------------
 
-export async function adjustBalanceAction(input: {
+export async function manualBalanceAction(input: {
   userId: string
   direction: 'credit' | 'debit'
   amount: number
@@ -172,53 +190,199 @@ export async function adjustBalanceAction(input: {
   const admin = await requireAdmin()
   const target = await walletStore.getUserById(input.userId)
   if (!target) return fail('User not found.')
+  if (target.role === 'admin') return fail('Cannot adjust an admin account balance.')
+  const amount = Math.round(input.amount * 100) / 100
+  if (!amount || amount <= 0) return fail('Amount must be positive.')
+  if (!input.reason.trim()) return fail('A reason is required.')
 
-  const reason = input.reason.trim()
-  if (reason.length < 3) return fail('A reason is required for manual adjustments.')
-
-  const amount = Math.round(Number(input.amount) * 100) / 100
-  if (!Number.isFinite(amount) || amount <= 0) return fail('Enter a valid amount.')
-  if (input.direction !== 'credit' && input.direction !== 'debit') {
-    return fail('Invalid adjustment direction.')
-  }
-
-  if (input.direction === 'debit') {
-    const balances = await walletStore.getBalances(target.id)
-    if (amount > balances.NGN) {
-      return fail(`Debit ${formatNgn(amount)} exceeds the user’s ${formatNgn(balances.NGN)} balance.`)
-    }
-  }
-
-  const signed = input.direction === 'credit' ? amount : -amount
   const txId = generateId('tx')
-  await walletStore.addTransactions([
-    {
-      id: txId,
-      userId: target.id,
-      type: input.direction === 'credit' ? 'fund' : 'withdraw',
-      asset: 'NGN',
-      amount: signed,
-      ngnValue: amount,
-      feeNgn: 0,
-      counterparty: 'Masanawa Support',
-      note: `Manual ${input.direction}: ${reason}`,
-      status: 'completed',
-      date: new Date().toISOString(),
-    },
-  ])
+  const signedAmount = input.direction === 'credit' ? amount : -amount
+  await walletStore.addTransactions([{
+    id: txId,
+    userId: target.id,
+    type: input.direction === 'credit' ? 'fund' : 'withdraw',
+    asset: 'NGN',
+    amount: signedAmount,
+    ngnValue: signedAmount,
+    feeNgn: 0,
+    counterparty: admin.name,
+    note: input.reason.trim(),
+    status: 'completed',
+    date: new Date().toISOString(),
+  }])
+
+  await walletStore.addNotification({
+    userId: target.id,
+    title: input.direction === 'credit' ? 'Account credited' : 'Account debited',
+    body:
+      input.direction === 'credit'
+        ? `${formatNgn(amount)} has been credited to your wallet. Reason: ${input.reason.trim()}`
+        : `${formatNgn(amount)} has been debited from your wallet. Reason: ${input.reason.trim()}`,
+  })
+
+  const reqInfo = await getRequestInfo()
   await walletStore.addAuditLog({
     actorId: admin.id,
     actorName: admin.name,
     action: input.direction === 'credit' ? 'balance.credit' : 'balance.debit',
     targetUserId: target.id,
-    detail: JSON.stringify({ amount, reason, txId }),
-  })
-  await walletStore.addNotification({
-    userId: target.id,
-    title: input.direction === 'credit' ? 'Wallet credited' : 'Wallet debited',
-    body: `${formatNgn(amount)} was ${input.direction === 'credit' ? 'added to' : 'deducted from'} your NGN balance by support. Reason: ${reason}`,
-    txId,
+    detail: JSON.stringify({ amount, reason: input.reason.trim(), txId }),
+    ip: reqInfo.ip,
+    userAgent: reqInfo.userAgent,
   })
   refreshAdmin()
   return { ok: true }
 }
+
+// ---------------------------------------------------------------------------
+// Phase B-2: Platform config management
+// ---------------------------------------------------------------------------
+
+export async function updatePlatformConfigAction(
+  input: Partial<PlatformConfig>,
+): Promise<AdminResult> {
+  const admin = await requireAdmin()
+  await setPlatformConfig(input, admin.id)
+  const reqInfo = await getRequestInfo()
+  await walletStore.addAuditLog({
+    actorId: admin.id,
+    actorName: admin.name,
+    action: 'config.update',
+    targetUserId: null,
+    detail: JSON.stringify(input),
+    ip: reqInfo.ip,
+    userAgent: reqInfo.userAgent,
+  })
+  refreshAdmin()
+  return { ok: true }
+}
+
+// ---------------------------------------------------------------------------
+// Phase B-5: Team management — promote/demote admin, force sign-out
+// ---------------------------------------------------------------------------
+
+export async function setUserRoleAction(input: {
+  userId: string
+  role: 'user' | 'admin'
+  reason?: string
+}): Promise<AdminResult> {
+  const admin = await requireAdmin()
+  if (admin.id === input.userId) return fail('You cannot change your own role.')
+  const target = await walletStore.getUserById(input.userId)
+  if (!target) return fail('User not found.')
+  if (target.role === 'superadmin') return fail('Cannot modify a super-admin.')
+
+  await walletStore.updateUser(target.id, { role: input.role })
+  const reqInfo = await getRequestInfo()
+  await walletStore.addAuditLog({
+    actorId: admin.id,
+    actorName: admin.name,
+    action: 'user.role',
+    targetUserId: target.id,
+    detail: JSON.stringify({ from: target.role, to: input.role, reason: input.reason?.trim() || null }),
+    ip: reqInfo.ip,
+    userAgent: reqInfo.userAgent,
+  })
+  refreshAdmin()
+  return { ok: true }
+}
+
+export async function forceSignOutAction(input: { userId: string }): Promise<AdminResult> {
+  const admin = await requireAdmin()
+  const target = await walletStore.getUserById(input.userId)
+  if (!target) return fail('User not found.')
+  if (target.role === 'superadmin') return fail('Cannot force sign-out a super-admin.')
+
+  await walletStore.forceSignOutUser(target.id)
+  const reqInfo = await getRequestInfo()
+  await walletStore.addAuditLog({
+    actorId: admin.id,
+    actorName: admin.name,
+    action: 'user.force_signout',
+    targetUserId: target.id,
+    detail: null,
+    ip: reqInfo.ip,
+    userAgent: reqInfo.userAgent,
+  })
+  refreshAdmin()
+  return { ok: true }
+}
+
+// ---------------------------------------------------------------------------
+// Phase B-7: Broadcast announcements
+// ---------------------------------------------------------------------------
+
+export async function broadcastAnnouncementAction(input: {
+  title: string
+  body: string
+}): Promise<AdminResult> {
+  const admin = await requireAdmin()
+  const title = input.title.trim()
+  const body = input.body.trim()
+  if (!title || !body) return fail('Title and body are required.')
+
+  const count = await walletStore.broadcastNotification({ title, body })
+  const reqInfo = await getRequestInfo()
+  await walletStore.addAuditLog({
+    actorId: admin.id,
+    actorName: admin.name,
+    action: 'announcement.broadcast',
+    targetUserId: null,
+    detail: JSON.stringify({ title, recipientCount: count }),
+    ip: reqInfo.ip,
+    userAgent: reqInfo.userAgent,
+  })
+  refreshAdmin()
+  return { ok: true }
+}
+
+// ---------------------------------------------------------------------------
+// Phase B-6: Funding reconciliation
+// ---------------------------------------------------------------------------
+
+export async function reassignFundingAction(input: {
+  transactionRef: string
+  userId: string
+}): Promise<AdminResult> {
+  const admin = await requireAdmin()
+  const target = await walletStore.getUserById(input.userId)
+  if (!target) return fail('Target user not found.')
+
+  await walletStore.reassignFunding(input.transactionRef, input.userId)
+  const reqInfo = await getRequestInfo()
+  await walletStore.addAuditLog({
+    actorId: admin.id,
+    actorName: admin.name,
+    action: 'funding.reassign',
+    targetUserId: input.userId,
+    detail: JSON.stringify({ transactionRef: input.transactionRef }),
+    ip: reqInfo.ip,
+    userAgent: reqInfo.userAgent,
+  })
+  refreshAdmin()
+  return { ok: true }
+}
+
+export async function refundFundingAction(input: {
+  transactionRef: string
+}): Promise<AdminResult> {
+  const admin = await requireAdmin()
+
+  await walletStore.refundFunding(input.transactionRef)
+  const reqInfo = await getRequestInfo()
+  await walletStore.addAuditLog({
+    actorId: admin.id,
+    actorName: admin.name,
+    action: 'funding.refund',
+    targetUserId: null,
+    detail: JSON.stringify({ transactionRef: input.transactionRef }),
+    ip: reqInfo.ip,
+    userAgent: reqInfo.userAgent,
+  })
+  refreshAdmin()
+  return { ok: true }
+}
+
+export const adjustBalanceAction = manualBalanceAction
+export const resetUserPinAction = resetPinAction
+export const verifyUserEmailAction = verifyEmailAction

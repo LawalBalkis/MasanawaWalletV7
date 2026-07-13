@@ -24,7 +24,7 @@ import type { TierId } from './tiers'
 // Records
 // ---------------------------------------------------------------------------
 
-export type UserRole = 'user' | 'admin'
+export type UserRole = 'user' | 'admin' | 'superadmin'
 export type UserStatus = 'active' | 'frozen'
 
 export interface UserRecord {
@@ -192,6 +192,8 @@ export interface AdminAuditEntry {
   action: string
   targetUserId: string | null
   detail: string | null
+  ip: string | null
+  userAgent: string | null
   createdAt: string
 }
 
@@ -201,6 +203,31 @@ export type NewAuditEntry = {
   action: string
   targetUserId?: string | null
   detail?: string | null
+  ip?: string | null
+  userAgent?: string | null
+}
+
+export interface TransactionListOptions {
+  limit?: number
+  offset?: number
+  type?: string
+  asset?: string
+  status?: string
+  userId?: string
+  search?: string
+  from?: string
+  to?: string
+}
+
+export interface AuditListOptions {
+  limit?: number
+  offset?: number
+  actorId?: string
+  action?: string
+  targetUserId?: string
+  search?: string
+  from?: string
+  to?: string
 }
 
 /** A single referral relationship (one invited user). */
@@ -308,11 +335,28 @@ export interface WalletStore {
   // Admin — user directory, oversight and audit trail
   listUsers(opts?: UserListOptions): Promise<UserRecord[]>
   countUsers(search?: string): Promise<number>
-  listAllTransactions(opts?: { limit?: number; offset?: number }): Promise<AdminLedgerTx[]>
+  listAllTransactions(opts?: TransactionListOptions): Promise<AdminLedgerTx[]>
+  countAllTransactions(opts?: TransactionListOptions): Promise<number>
   listAllFundings(opts?: { limit?: number; offset?: number }): Promise<AdminFunding[]>
   getPlatformStats(): Promise<PlatformStats>
   addAuditLog(entry: NewAuditEntry): Promise<void>
-  listAuditLog(opts?: { limit?: number; targetUserId?: string }): Promise<AdminAuditEntry[]>
+  listAuditLog(opts?: AuditListOptions): Promise<AdminAuditEntry[]>
+  countAuditLog(opts?: AuditListOptions): Promise<number>
+  // Platform settings (Phase B-2)
+  getPlatformSetting(key: string): Promise<unknown | null>
+  setPlatformSetting(key: string, value: unknown, updatedBy: string): Promise<void>
+  getAllPlatformSettings(): Promise<{ key: string; value: unknown }[]>
+  // Reports (Phase B-3)
+  getFeeRevenueReport(from?: Date, to?: Date): Promise<{ asset: string; totalFeesNgn: number; count: number }[]>
+  getLiabilitiesReport(): Promise<{ asset: string; totalAmount: number; ngnValue: number }[]>
+  getDailyFlowReport(days: number): Promise<{ date: string; inflowNgn: number; outflowNgn: number }[]>
+  // Team management (Phase B-5)
+  forceSignOutUser(userId: string): Promise<void>
+  // Broadcast announcements (Phase B-7)
+  broadcastNotification(input: { title: string; body: string }): Promise<number>
+  // Funding reconciliation (Phase B-6)
+  reassignFunding(transactionRef: string, userId: string): Promise<void>
+  refundFunding(transactionRef: string): Promise<void>
 }
 
 // ---------------------------------------------------------------------------
@@ -861,18 +905,59 @@ class InMemoryWalletStore implements WalletStore {
     return (await this.listUsers({ search })).length
   }
 
-  async listAllTransactions(opts?: { limit?: number; offset?: number }) {
+  async listAllTransactions(opts?: TransactionListOptions) {
     const users = getState().users
-    const all: AdminLedgerTx[] = getState()
+    let all: AdminLedgerTx[] = getState()
       .transactions.slice()
       .sort((a, b) => b.date.localeCompare(a.date))
       .map((tx) => {
         const owner = users.get(tx.userId)
         return { ...tx, username: owner?.username ?? tx.userId, userName: owner?.name ?? 'Unknown' }
       })
+    if (opts?.type) all = all.filter((t) => t.type === opts.type)
+    if (opts?.asset) all = all.filter((t) => t.asset === opts.asset)
+    if (opts?.status) all = all.filter((t) => t.status === opts.status)
+    if (opts?.userId) all = all.filter((t) => t.userId === opts.userId)
+    if (opts?.from) all = all.filter((t) => t.date >= opts.from!)
+    if (opts?.to) all = all.filter((t) => t.date <= opts.to!)
+    if (opts?.search) {
+      const q = opts.search.toLowerCase()
+      all = all.filter(
+        (t) =>
+          t.id.toLowerCase().includes(q) ||
+          t.counterparty?.toLowerCase().includes(q) ||
+          t.note?.toLowerCase().includes(q) ||
+          t.username.toLowerCase().includes(q),
+      )
+    }
     const offset = opts?.offset ?? 0
     const limit = opts?.limit ?? all.length
     return all.slice(offset, offset + limit)
+  }
+
+  async countAllTransactions(opts?: TransactionListOptions) {
+    const users = getState().users
+    let all: AdminLedgerTx[] = getState().transactions.map((tx) => {
+      const owner = users.get(tx.userId)
+      return { ...tx, username: owner?.username ?? tx.userId, userName: owner?.name ?? 'Unknown' }
+    })
+    if (opts?.type) all = all.filter((t) => t.type === opts.type)
+    if (opts?.asset) all = all.filter((t) => t.asset === opts.asset)
+    if (opts?.status) all = all.filter((t) => t.status === opts.status)
+    if (opts?.userId) all = all.filter((t) => t.userId === opts.userId)
+    if (opts?.from) all = all.filter((t) => t.date >= opts.from!)
+    if (opts?.to) all = all.filter((t) => t.date <= opts.to!)
+    if (opts?.search) {
+      const q = opts.search.toLowerCase()
+      all = all.filter(
+        (t) =>
+          t.id.toLowerCase().includes(q) ||
+          t.counterparty?.toLowerCase().includes(q) ||
+          t.note?.toLowerCase().includes(q) ||
+          t.username.toLowerCase().includes(q),
+      )
+    }
+    return all.length
   }
 
   async listAllFundings(opts?: { limit?: number; offset?: number }) {
@@ -921,16 +1006,142 @@ class InMemoryWalletStore implements WalletStore {
       action: entry.action,
       targetUserId: entry.targetUserId ?? null,
       detail: entry.detail ?? null,
+      ip: entry.ip ?? null,
+      userAgent: entry.userAgent ?? null,
       createdAt: new Date().toISOString(),
     })
   }
 
-  async listAuditLog(opts?: { limit?: number; targetUserId?: string }) {
-    let entries = getState().auditLog
-    if (opts?.targetUserId) {
-      entries = entries.filter((e) => e.targetUserId === opts.targetUserId)
+  async listAuditLog(opts?: AuditListOptions) {
+    let entries = getState().auditLog.slice()
+    if (opts?.actorId) entries = entries.filter((e) => e.actorId === opts.actorId)
+    if (opts?.action) entries = entries.filter((e) => e.action === opts.action)
+    if (opts?.targetUserId) entries = entries.filter((e) => e.targetUserId === opts.targetUserId)
+    if (opts?.from) entries = entries.filter((e) => e.createdAt >= opts.from!)
+    if (opts?.to) entries = entries.filter((e) => e.createdAt <= opts.to!)
+    if (opts?.search) {
+      const q = opts.search.toLowerCase()
+      entries = entries.filter(
+        (e) =>
+          e.actorName.toLowerCase().includes(q) ||
+          e.action.toLowerCase().includes(q) ||
+          e.detail?.toLowerCase().includes(q),
+      )
     }
-    return opts?.limit ? entries.slice(0, opts.limit) : entries.slice()
+    const offset = opts?.offset ?? 0
+    const limit = opts?.limit ?? entries.length
+    return entries.slice(offset, offset + limit)
+  }
+
+  async countAuditLog(opts?: AuditListOptions) {
+    let entries = getState().auditLog.slice()
+    if (opts?.actorId) entries = entries.filter((e) => e.actorId === opts.actorId)
+    if (opts?.action) entries = entries.filter((e) => e.action === opts.action)
+    if (opts?.targetUserId) entries = entries.filter((e) => e.targetUserId === opts.targetUserId)
+    if (opts?.from) entries = entries.filter((e) => e.createdAt >= opts.from!)
+    if (opts?.to) entries = entries.filter((e) => e.createdAt <= opts.to!)
+    if (opts?.search) {
+      const q = opts.search.toLowerCase()
+      entries = entries.filter(
+        (e) =>
+          e.actorName.toLowerCase().includes(q) ||
+          e.action.toLowerCase().includes(q) ||
+          e.detail?.toLowerCase().includes(q),
+      )
+    }
+    return entries.length
+  }
+
+  async getPlatformSetting(_key: string) {
+    return null
+  }
+
+  async setPlatformSetting(_key: string, _value: unknown, _updatedBy: string) {
+    // In-memory store doesn't persist platform settings
+  }
+
+  async getAllPlatformSettings() {
+    return []
+  }
+
+  async getFeeRevenueReport(_from?: Date, _to?: Date) {
+    const txs = getState().transactions
+    const byAsset = new Map<string, { totalFeesNgn: number; count: number }>()
+    for (const tx of txs) {
+      const existing = byAsset.get(tx.asset) ?? { totalFeesNgn: 0, count: 0 }
+      existing.totalFeesNgn += Number(tx.feeNgn)
+      existing.count += 1
+      byAsset.set(tx.asset, existing)
+    }
+    return [...byAsset.entries()].map(([asset, v]) => ({ asset, ...v }))
+  }
+
+  async getLiabilitiesReport() {
+    const txs = getState().transactions
+    const byAsset = new Map<string, { totalAmount: number; ngnValue: number }>()
+    for (const tx of txs) {
+      const existing = byAsset.get(tx.asset) ?? { totalAmount: 0, ngnValue: 0 }
+      existing.totalAmount += Number(tx.amount)
+      existing.ngnValue += Number(tx.ngnValue)
+      byAsset.set(tx.asset, existing)
+    }
+    return [...byAsset.entries()].map(([asset, v]) => ({ asset, ...v }))
+  }
+
+  async getDailyFlowReport(days: number) {
+    const txs = getState().transactions
+    const now = new Date()
+    const result: { date: string; inflowNgn: number; outflowNgn: number }[] = []
+    for (let i = days - 1; i >= 0; i--) {
+      const day = new Date(now)
+      day.setDate(day.getDate() - i)
+      const dayStr = day.toISOString().slice(0, 10)
+      const dayStart = dayStr + 'T00:00:00.000Z'
+      const dayEnd = dayStr + 'T23:59:59.999Z'
+      let inflow = 0
+      let outflow = 0
+      for (const tx of txs) {
+        if (tx.date >= dayStart && tx.date <= dayEnd) {
+          if (Number(tx.amount) > 0) inflow += Number(tx.ngnValue)
+          else outflow += Math.abs(Number(tx.ngnValue))
+        }
+      }
+      result.push({ date: dayStr, inflowNgn: inflow, outflowNgn: outflow })
+    }
+    return result
+  }
+
+  async forceSignOutUser(userId: string) {
+    const sessions = getState().sessions
+    for (const [hash, s] of sessions) {
+      if (s.userId === userId) sessions.delete(hash)
+    }
+  }
+
+  async broadcastNotification(input: { title: string; body: string }) {
+    const s = getState()
+    let count = 0
+    for (const user of s.users.values()) {
+      s.counter += 1
+      s.notifications.set(`ntf_${Date.now()}_${s.counter}_${user.id}`, {
+        id: `ntf_${Date.now()}_${s.counter}_${user.id}`,
+        userId: user.id,
+        title: input.title,
+        body: input.body,
+        read: false,
+        date: new Date().toISOString(),
+      })
+      count += 1
+    }
+    return count
+  }
+
+  async reassignFunding(_transactionRef: string, _userId: string) {
+    // In-memory store: no-op (fundings are keyed by ref, reassignment is a DB concept)
+  }
+
+  async refundFunding(_transactionRef: string) {
+    // In-memory store: no-op
   }
 }
 

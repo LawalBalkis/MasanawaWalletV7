@@ -2,16 +2,7 @@
 
 import { Logo } from '@/components/site/logo'
 import { signOutAction } from '@/lib/auth/actions'
-import {
-  ArrowLeft,
-  Banknote,
-  LayoutDashboard,
-  LogOut,
-  Menu,
-  ScrollText,
-  Users,
-  X,
-} from 'lucide-react'
+import { ArrowLeft, Banknote, ChartBar as BarChart3, LayoutDashboard, LogOut, Megaphone, Menu, Receipt, ScrollText, Settings, Users, UserCog, X } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState } from 'react'
@@ -19,7 +10,12 @@ import { useState } from 'react'
 const NAV_ITEMS = [
   { href: '/admin', label: 'Overview', icon: LayoutDashboard },
   { href: '/admin/users', label: 'Users', icon: Users },
+  { href: '/admin/transactions', label: 'Transactions', icon: Receipt },
   { href: '/admin/fundings', label: 'Fundings', icon: Banknote },
+  { href: '/admin/reports', label: 'Reports', icon: BarChart3 },
+  { href: '/admin/settings', label: 'Platform config', icon: Settings },
+  { href: '/admin/team', label: 'Team', icon: UserCog },
+  { href: '/admin/announcements', label: 'Announcements', icon: Megaphone },
   { href: '/admin/audit', label: 'Audit log', icon: ScrollText },
 ]
 

@@ -14,6 +14,7 @@ import {
   boolean,
   index,
   integer,
+  jsonb,
   numeric,
   pgTable,
   text,
@@ -191,6 +192,10 @@ export const adminAuditLog = pgTable(
     targetUserId: text('target_user_id'),
     /** JSON string with action-specific context (amounts, reasons, before/after). */
     detail: text('detail'),
+    /** IP address of the admin client. */
+    ip: text('ip'),
+    /** User-Agent string of the admin client. */
+    userAgent: text('user_agent'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -257,5 +262,16 @@ export const rateLimits = pgTable('rate_limits', {
   key: text('key').primaryKey(),
   count: integer('count').notNull().default(0),
   windowStart: timestamp('window_start', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+/**
+ * Runtime-tunable platform configuration (Phase B-2). Key/value JSON store
+ * so fees, limits, referral bonus, and min amounts can be changed without a deploy.
+ */
+export const platformSettings = pgTable('platform_settings', {
+  key: text('key').primaryKey(),
+  value: jsonb('value').notNull(),
+  updatedBy: text('updated_by').references(() => users.id, { onDelete: 'set null' }),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
