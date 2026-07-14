@@ -29,6 +29,11 @@ import type {
   ReferralStats,
   SessionRecord,
   TransactionListOptions,
+  P2POfferRecord,
+  P2POrderRecord,
+  EscrowHoldRecord,
+  P2PMessageRecord,
+  P2PDisputeRecord,
   UserListOptions,
   UserPatch,
   UserRecord,
@@ -50,6 +55,11 @@ const {
   referrals,
   rateLimits,
   platformSettings,
+  p2pOffers,
+  p2pOrders,
+  escrowHolds,
+  p2pOrderMessages,
+  p2pDisputes,
 } = schema
 
 type ReferralRow = typeof referrals.$inferSelect
@@ -392,7 +402,7 @@ export class DrizzleWalletStore implements WalletStore {
           id: credit.txId,
           userId: credit.userId,
           type: 'fund',
-          asset: 'NGN',
+          asset: 'MSN',
           amount: record.amount,
           ngnValue: record.amount,
           feeNgn: 0,
@@ -533,7 +543,7 @@ export class DrizzleWalletStore implements WalletStore {
           id: txId,
           userId,
           type: 'receive',
-          asset: 'NGN',
+          asset: 'MSN',
           amount,
           ngnValue: amount,
           feeNgn: 0,
@@ -958,7 +968,7 @@ export class DrizzleWalletStore implements WalletStore {
       id: txId,
       userId,
       type: 'fund',
-      asset: 'NGN',
+      asset: 'MSN',
       amount: funding.amount,
       ngnValue: funding.amount,
       feeNgn: 0,
@@ -969,7 +979,169 @@ export class DrizzleWalletStore implements WalletStore {
   }
 
   async refundFunding(transactionRef: string) {
-    // Mark as refunded by deleting the funding record (it remains in audit log)
     await getDb().delete(fundings).where(eq(fundings.transactionRef, transactionRef))
+  }
+
+  // P2P Escrow (Phase 3)
+  async createP2POffer(input: Omit<P2POfferRecord, 'createdAt'>) {
+    await getDb().insert(p2pOffers).values({
+      id: input.id,
+      makerId: input.makerId,
+      side: input.side,
+      asset: input.asset,
+      priceMsn: input.priceMsn,
+      totalAmount: input.totalAmount,
+      remainingAmount: input.remainingAmount,
+      minOrderMsn: input.minOrderMsn,
+      maxOrderMsn: input.maxOrderMsn,
+      terms: input.terms,
+      status: input.status,
+    })
+  }
+
+  async getP2POffer(id: string) {
+    const [row] = await getDb().select().from(p2pOffers).where(eq(p2pOffers.id, id)).limit(1)
+    if (!row) return null
+    return {
+      id: row.id, makerId: row.makerId, side: row.side as 'buy' | 'sell', asset: row.asset,
+      priceMsn: Number(row.priceMsn), totalAmount: Number(row.totalAmount), remainingAmount: Number(row.remainingAmount),
+      minOrderMsn: Number(row.minOrderMsn), maxOrderMsn: Number(row.maxOrderMsn),
+      terms: row.terms, status: row.status as 'active' | 'paused' | 'closed', createdAt: row.createdAt.toISOString(),
+    }
+  }
+
+  async listP2POffers(opts?: { asset?: string; side?: string; status?: string; makerId?: string; limit?: number; offset?: number }) {
+    let q = getDb().select().from(p2pOffers).orderBy(desc(p2pOffers.createdAt)).$dynamic()
+    const conditions = []
+    if (opts?.asset) conditions.push(eq(p2pOffers.asset, opts.asset))
+    if (opts?.side) conditions.push(eq(p2pOffers.side, opts.side))
+    if (opts?.status) conditions.push(eq(p2pOffers.status, opts.status))
+    if (opts?.makerId) conditions.push(eq(p2pOffers.makerId, opts.makerId))
+    if (conditions.length > 0) q = q.where(and(...conditions))
+    if (opts?.limit != null) q = q.limit(opts.limit)
+    if (opts?.offset != null) q = q.offset(opts.offset)
+    const rows = await q
+    return rows.map((r) => ({
+      id: r.id, makerId: r.makerId, side: r.side as 'buy' | 'sell', asset: r.asset,
+      priceMsn: Number(r.priceMsn), totalAmount: Number(r.totalAmount), remainingAmount: Number(r.remainingAmount),
+      minOrderMsn: Number(r.minOrderMsn), maxOrderMsn: Number(r.maxOrderMsn),
+      terms: r.terms, status: r.status as 'active' | 'paused' | 'closed', createdAt: r.createdAt.toISOString(),
+    }))
+  }
+
+  async updateP2POffer(id: string, patch: Partial<P2POfferRecord>) {
+    const update: Record<string, unknown> = {}
+    if (patch.remainingAmount != null) update.remainingAmount = patch.remainingAmount
+    if (patch.status != null) update.status = patch.status
+    if (Object.keys(update).length > 0) await getDb().update(p2pOffers).set(update).where(eq(p2pOffers.id, id))
+  }
+
+  async createP2POrder(input: Omit<P2POrderRecord, 'createdAt'>) {
+    await getDb().insert(p2pOrders).values({
+      id: input.id, offerId: input.offerId, makerId: input.makerId, takerId: input.takerId,
+      asset: input.asset, amount: input.amount, priceMsn: input.priceMsn,
+      totalMsn: input.totalMsn, feeMsn: input.feeMsn, status: input.status,
+      escrowHoldId: input.escrowHoldId,
+      expiresAt: input.expiresAt ? new Date(input.expiresAt) : null,
+    })
+  }
+
+  async getP2POrder(id: string) {
+    const [row] = await getDb().select().from(p2pOrders).where(eq(p2pOrders.id, id)).limit(1)
+    if (!row) return null
+    return {
+      id: row.id, offerId: row.offerId, makerId: row.makerId, takerId: row.takerId, asset: row.asset,
+      amount: Number(row.amount), priceMsn: Number(row.priceMsn), totalMsn: Number(row.totalMsn),
+      feeMsn: Number(row.feeMsn), status: row.status as any, escrowHoldId: row.escrowHoldId,
+      expiresAt: row.expiresAt?.toISOString() ?? null,
+      completedAt: row.completedAt?.toISOString() ?? null,
+      createdAt: row.createdAt.toISOString(),
+    }
+  }
+
+  async listP2POrders(opts?: { userId?: string; status?: string; limit?: number; offset?: number }) {
+    let q = getDb().select().from(p2pOrders).orderBy(desc(p2pOrders.createdAt)).$dynamic()
+    const conditions = []
+    if (opts?.userId) conditions.push(or(eq(p2pOrders.makerId, opts.userId), eq(p2pOrders.takerId, opts.userId))!)
+    if (opts?.status) conditions.push(eq(p2pOrders.status, opts.status))
+    if (conditions.length > 0) q = q.where(and(...conditions))
+    if (opts?.limit != null) q = q.limit(opts.limit)
+    if (opts?.offset != null) q = q.offset(opts.offset)
+    const rows = await q
+    return rows.map((r) => ({
+      id: r.id, offerId: r.offerId, makerId: r.makerId, takerId: r.takerId, asset: r.asset,
+      amount: Number(r.amount), priceMsn: Number(r.priceMsn), totalMsn: Number(r.totalMsn),
+      feeMsn: Number(r.feeMsn), status: r.status as any, escrowHoldId: r.escrowHoldId,
+      expiresAt: r.expiresAt?.toISOString() ?? null,
+      completedAt: r.completedAt?.toISOString() ?? null,
+      createdAt: r.createdAt.toISOString(),
+    }))
+  }
+
+  async updateP2POrder(id: string, patch: Partial<P2POrderRecord>) {
+    const update: Record<string, unknown> = {}
+    if (patch.status != null) update.status = patch.status
+    if (patch.completedAt != null) update.completedAt = new Date(patch.completedAt)
+    if (Object.keys(update).length > 0) await getDb().update(p2pOrders).set(update).where(eq(p2pOrders.id, id))
+  }
+
+  async createEscrowHold(input: Omit<EscrowHoldRecord, 'createdAt' | 'resolvedAt'>) {
+    await getDb().insert(escrowHolds).values({
+      id: input.id, orderId: input.orderId, ownerId: input.ownerId,
+      asset: input.asset, amount: input.amount, status: input.status,
+    })
+  }
+
+  async updateEscrowHold(id: string, patch: Partial<EscrowHoldRecord>) {
+    const update: Record<string, unknown> = {}
+    if (patch.status != null) update.status = patch.status
+    if (patch.resolvedAt != null) update.resolvedAt = new Date(patch.resolvedAt)
+    if (Object.keys(update).length > 0) await getDb().update(escrowHolds).set(update).where(eq(escrowHolds.id, id))
+  }
+
+  async createP2PMessage(input: Omit<P2PMessageRecord, 'createdAt'>) {
+    await getDb().insert(p2pOrderMessages).values({
+      id: input.id, orderId: input.orderId, senderId: input.senderId, body: input.body,
+    })
+  }
+
+  async listP2PMessages(orderId: string) {
+    const rows = await getDb().select().from(p2pOrderMessages)
+      .where(eq(p2pOrderMessages.orderId, orderId))
+      .orderBy(p2pOrderMessages.createdAt)
+    return rows.map((r) => ({
+      id: r.id, orderId: r.orderId, senderId: r.senderId, body: r.body,
+      createdAt: r.createdAt.toISOString(),
+    }))
+  }
+
+  async createP2PDispute(input: Omit<P2PDisputeRecord, 'createdAt'>) {
+    await getDb().insert(p2pDisputes).values({
+      id: input.id, orderId: input.orderId, openedById: input.openedById,
+      reason: input.reason, evidence: input.evidence as any, status: input.status,
+    })
+  }
+
+  async listP2PDisputes(opts?: { status?: string; limit?: number }) {
+    let q = getDb().select().from(p2pDisputes).orderBy(desc(p2pDisputes.createdAt)).$dynamic()
+    if (opts?.status) q = q.where(eq(p2pDisputes.status, opts.status))
+    if (opts?.limit != null) q = q.limit(opts.limit)
+    const rows = await q
+    return rows.map((r) => ({
+      id: r.id, orderId: r.orderId, openedById: r.openedById, reason: r.reason,
+      evidence: r.evidence, status: r.status as any,
+      resolvedById: r.resolvedById, resolutionNote: r.resolutionNote,
+      resolvedAt: r.resolvedAt?.toISOString() ?? null,
+      createdAt: r.createdAt.toISOString(),
+    }))
+  }
+
+  async updateP2PDispute(id: string, patch: Partial<P2PDisputeRecord>) {
+    const update: Record<string, unknown> = {}
+    if (patch.status != null) update.status = patch.status
+    if (patch.resolvedById != null) update.resolvedById = patch.resolvedById
+    if (patch.resolutionNote != null) update.resolutionNote = patch.resolutionNote
+    if (patch.resolvedAt != null) update.resolvedAt = new Date(patch.resolvedAt)
+    if (Object.keys(update).length > 0) await getDb().update(p2pDisputes).set(update).where(eq(p2pDisputes.id, id))
   }
 }

@@ -7,7 +7,7 @@ import 'server-only'
 
 import { FALLBACK_NGN_RATES, type AssetSymbol } from './assets'
 
-const COINGECKO_IDS: Record<Exclude<AssetSymbol, 'NGN'>, string> = {
+const COINGECKO_IDS: Record<Exclude<AssetSymbol, 'MSN'>, string> = {
   USDT: 'tether',
   USDC: 'usd-coin',
   BTC: 'bitcoin',
@@ -26,7 +26,7 @@ export async function getNgnRates(): Promise<Record<AssetSymbol, number>> {
     const data = (await res.json()) as Record<string, { ngn?: number }>
     const rates: Record<AssetSymbol, number> = { ...FALLBACK_NGN_RATES }
     for (const [symbol, id] of Object.entries(COINGECKO_IDS) as [
-      Exclude<AssetSymbol, 'NGN'>,
+      Exclude<AssetSymbol, 'MSN'>,
       string,
     ][]) {
       const ngn = data[id]?.ngn

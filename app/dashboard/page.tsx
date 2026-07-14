@@ -1,5 +1,6 @@
 import { AssetList } from '@/components/wallet/asset-list'
 import { BalanceOverview } from '@/components/wallet/balance-overview'
+import { MsnEducationSheet } from '@/components/wallet/msn-education-sheet'
 import { TransactionList } from '@/components/wallet/transaction-list'
 import { requireUser } from '@/lib/auth/session'
 import { getHoldings, totalNgnValue } from '@/lib/wallet/holdings'
@@ -23,7 +24,8 @@ export default async function DashboardPage() {
           Here&apos;s what&apos;s happening with your wallet today.
         </p>
       </header>
-      <BalanceOverview total={total} username={user.username} />
+      <BalanceOverview total={total} username={user.username} msnBalance={holdings.find(h => h.symbol === "MSN")?.balance ?? 0} />
+      <div className="flex justify-end"><MsnEducationSheet /></div>
       <div className="grid gap-8 lg:grid-cols-2">
         <AssetList holdings={holdings} />
         <TransactionList transactions={transactions} />

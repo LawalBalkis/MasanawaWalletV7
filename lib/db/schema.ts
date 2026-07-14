@@ -275,3 +275,71 @@ export const platformSettings = pgTable('platform_settings', {
   updatedBy: text('updated_by').references(() => users.id, { onDelete: 'set null' }),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
+
+// ---------------------------------------------------------------------------
+// P2P Escrow System (Phase 3)
+// ---------------------------------------------------------------------------
+
+export const p2pOffers = pgTable('p2p_offers', {
+  id: text('id').primaryKey(),
+  makerId: text('maker_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  side: text('side').notNull(),
+  asset: text('asset').notNull(),
+  priceMsn: numeric('price_msn', { precision: 20, scale: 2, mode: 'number' }).notNull(),
+  totalAmount: numeric('total_amount', { precision: 38, scale: 18, mode: 'number' }).notNull(),
+  remainingAmount: numeric('remaining_amount', { precision: 38, scale: 18, mode: 'number' }).notNull(),
+  minOrderMsn: numeric('min_order_msn', { precision: 20, scale: 2, mode: 'number' }).notNull().default(0),
+  maxOrderMsn: numeric('max_order_msn', { precision: 20, scale: 2, mode: 'number' }).notNull().default(0),
+  terms: text('terms'),
+  status: text('status').notNull().default('active'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+export const p2pOrders = pgTable('p2p_orders', {
+  id: text('id').primaryKey(),
+  offerId: text('offer_id').notNull().references(() => p2pOffers.id, { onDelete: 'cascade' }),
+  makerId: text('maker_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  takerId: text('taker_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  asset: text('asset').notNull(),
+  amount: numeric('amount', { precision: 38, scale: 18, mode: 'number' }).notNull(),
+  priceMsn: numeric('price_msn', { precision: 20, scale: 2, mode: 'number' }).notNull(),
+  totalMsn: numeric('total_msn', { precision: 20, scale: 2, mode: 'number' }).notNull(),
+  feeMsn: numeric('fee_msn', { precision: 20, scale: 2, mode: 'number' }).notNull().default(0),
+  status: text('status').notNull().default('open'),
+  escrowHoldId: text('escrow_hold_id'),
+  expiresAt: timestamp('expires_at', { withTimezone: true }),
+  completedAt: timestamp('completed_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+export const escrowHolds = pgTable('escrow_holds', {
+  id: text('id').primaryKey(),
+  orderId: text('order_id').notNull().references(() => p2pOrders.id, { onDelete: 'cascade' }),
+  ownerId: text('owner_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  asset: text('asset').notNull(),
+  amount: numeric('amount', { precision: 38, scale: 18, mode: 'number' }).notNull(),
+  status: text('status').notNull().default('held'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+})
+
+export const p2pOrderMessages = pgTable('p2p_order_messages', {
+  id: text('id').primaryKey(),
+  orderId: text('order_id').notNull().references(() => p2pOrders.id, { onDelete: 'cascade' }),
+  senderId: text('sender_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  body: text('body').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+export const p2pDisputes = pgTable('p2p_disputes', {
+  id: text('id').primaryKey(),
+  orderId: text('order_id').notNull().references(() => p2pOrders.id, { onDelete: 'cascade' }),
+  openedById: text('opened_by_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  reason: text('reason').notNull(),
+  evidence: jsonb('evidence'),
+  status: text('status').notNull().default('open'),
+  resolvedById: text('resolved_by_id').references(() => users.id, { onDelete: 'set null' }),
+  resolutionNote: text('resolution_note'),
+  resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+})

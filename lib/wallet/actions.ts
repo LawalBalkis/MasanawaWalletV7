@@ -30,7 +30,7 @@ export interface MoneyResult {
   txId?: string
 }
 
-const VALID_ASSETS: AssetSymbol[] = ['NGN', 'USDT', 'USDC', 'BTC', 'ETH', 'SOL']
+const VALID_ASSETS: AssetSymbol[] = ['MSN', 'USDT', 'USDC', 'BTC', 'ETH', 'SOL']
 
 function fail(error: string): MoneyResult {
   return { ok: false, error }
@@ -165,14 +165,14 @@ export async function sendMoneyAction(input: {
 }
 
 // ---------------------------------------------------------------------------
-// Buy / sell crypto against NGN
+// Buy / sell crypto against MSN
 // ---------------------------------------------------------------------------
 
 export async function tradeAction(input: {
   pin: string
   mode: 'buy' | 'sell'
   asset: AssetSymbol
-  ngnAmount: number
+  msnAmount: number
 }): Promise<MoneyResult> {
   const user = await requireUser()
 
@@ -183,16 +183,16 @@ export async function tradeAction(input: {
     return fail('Too many trades in the last hour. Please slow down.')
   }
 
-  if (input.asset === 'NGN' || !VALID_ASSETS.includes(input.asset)) {
+  if (input.asset === 'MSN' || !VALID_ASSETS.includes(input.asset)) {
     return fail('Pick a crypto asset to trade.')
   }
-  const ngn = Number(input.ngnAmount)
-  if (!Number.isFinite(ngn) || ngn < 1000) return fail(`Minimum trade is ${formatNgn(1000)}.`)
+  const msn = Number(input.msnAmount)
+  if (!Number.isFinite(msn) || msn < 1000) return fail(`Minimum trade is ${formatNgn(1000)}.`)
 
   const rates = await getNgnRates()
   const rate = rates[input.asset]
-  const fee = tradeFeeNgn(ngn)
-  const assetAmount = ngn / rate
+  const fee = tradeFeeNgn(msn)
+  const assetAmount = msn / rate
   const meta = assetMeta(input.asset)
   const balances = await walletStore.getBalances(user.id)
 
@@ -200,9 +200,9 @@ export async function tradeAction(input: {
   const txId = generateId('tx')
 
   if (input.mode === 'buy') {
-    const totalCost = Math.round((ngn + fee) * 100) / 100
-    if (totalCost > balances.NGN) {
-      return fail(`Total cost ${formatNgn(totalCost)} exceeds your naira balance.`)
+    const totalCost = Math.round((msn + fee) * 100) / 100
+    if (totalCost > balances.MSN) {
+      return fail(`Total cost ${formatNgn(totalCost)} exceeds your MSN balance.`)
     }
     await walletStore.addTransactions([
       {
@@ -213,7 +213,7 @@ export async function tradeAction(input: {
         amount: assetAmount,
         ngnValue: totalCost,
         feeNgn: fee,
-        note: `Bought with NGN at ${formatNgn(rate)}/${input.asset}`,
+        note: `Bought with MSN at ${formatNgn(rate)}/${input.asset}`,
         status: 'completed',
         date,
       },
@@ -230,7 +230,7 @@ export async function tradeAction(input: {
     if (assetAmount > balances[input.asset]) {
       return fail(`You need ${formatAsset(assetAmount, meta)} but only hold ${formatAsset(balances[input.asset], meta)}.`)
     }
-    const proceeds = Math.round((ngn - fee) * 100) / 100
+    const proceeds = Math.round((msn - fee) * 100) / 100
     await walletStore.addTransactions([
       {
         id: txId,
@@ -240,7 +240,7 @@ export async function tradeAction(input: {
         amount: -assetAmount,
         ngnValue: proceeds,
         feeNgn: fee,
-        note: `Sold to NGN at ${formatNgn(rate)}/${input.asset}`,
+        note: `Sold to MSN at ${formatNgn(rate)}/${input.asset}`,
         status: 'completed',
         date,
       },
@@ -260,7 +260,7 @@ export async function tradeAction(input: {
 }
 
 // ---------------------------------------------------------------------------
-// Withdraw NGN to a Nigerian bank account
+// Withdraw MSN (redeem to NGN bank payout)
 // ---------------------------------------------------------------------------
 
 export async function withdrawBankAction(input: {
@@ -297,13 +297,13 @@ export async function withdrawBankAction(input: {
   const fee = FEES.withdrawNgn
   const totalDebit = amount + fee
   const balances = await walletStore.getBalances(user.id)
-  if (totalDebit > balances.NGN) {
+  if (totalDebit > balances.MSN) {
     return fail(`Amount plus the ${formatNgn(fee)} fee exceeds your naira balance.`)
   }
 
   if (tier.dailyWithdrawalNgn !== null) {
     const txs = await walletStore.listTransactions(user.id)
-    const today = dailyOutflowNgn(txs, ['withdraw'], { ngnOnly: true })
+    const today = dailyOutflowNgn(txs, ['withdraw'], { msnOnly: true })
     if (today + amount > tier.dailyWithdrawalNgn) {
       return fail(
         `This would exceed your ${formatNgn(tier.dailyWithdrawalNgn)} daily withdrawal limit (${formatNgn(today)} used today).`,
@@ -317,7 +317,7 @@ export async function withdrawBankAction(input: {
       id: txId,
       userId: user.id,
       type: 'withdraw',
-      asset: 'NGN',
+      asset: 'MSN',
       amount: -totalDebit,
       ngnValue: amount,
       feeNgn: fee,
@@ -367,7 +367,7 @@ export async function withdrawCryptoAction(input: {
     return fail('Too many withdrawals in the last hour. Please slow down.')
   }
 
-  if (input.asset === 'NGN' || !VALID_ASSETS.includes(input.asset)) {
+  if (input.asset === 'MSN' || !VALID_ASSETS.includes(input.asset)) {
     return fail('Pick a crypto asset to withdraw.')
   }
   const address = input.address.trim()

@@ -5,13 +5,7 @@ import {
   type TxType,
   type WalletTx,
 } from '@/lib/wallet/assets'
-import {
-  ArrowDownLeft,
-  ArrowDownToLine,
-  ArrowLeftRight,
-  ArrowUpRight,
-  Banknote,
-} from 'lucide-react'
+import { ArrowDownLeft, ArrowDownToLine, ArrowLeftRight, ArrowUpRight, Banknote, Lock, RefreshCw, RotateCcw, Clock as Unlock } from 'lucide-react'
 import Link from 'next/link'
 
 export const TX_META: Record<
@@ -24,6 +18,10 @@ export const TX_META: Record<
   sell: { label: 'Sold', icon: ArrowLeftRight, direction: 'out' },
   send: { label: 'Sent', icon: ArrowUpRight, direction: 'out' },
   withdraw: { label: 'Withdrew', icon: ArrowDownToLine, direction: 'out' },
+  escrow_lock: { label: 'Escrow locked', icon: Lock, direction: 'out' },
+  escrow_release: { label: 'Escrow released', icon: Unlock, direction: 'in' },
+  escrow_refund: { label: 'Escrow refunded', icon: RotateCcw, direction: 'in' },
+  convert: { label: 'Converted to MSN', icon: RefreshCw, direction: 'in' },
 }
 
 export function txTitle(tx: WalletTx): string {

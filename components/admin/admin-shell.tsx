@@ -15,6 +15,7 @@ const NAV_ITEMS = [
   { href: '/admin/reports', label: 'Reports', icon: BarChart3 },
   { href: '/admin/settings', label: 'Platform config', icon: Settings },
   { href: '/admin/team', label: 'Team', icon: UserCog },
+  { href: '/admin/p2p', label: 'P2P Console', icon: BarChart3 },
   { href: '/admin/announcements', label: 'Announcements', icon: Megaphone },
   { href: '/admin/audit', label: 'Audit log', icon: ScrollText },
 ]

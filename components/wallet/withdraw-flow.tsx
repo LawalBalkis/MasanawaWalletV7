@@ -50,12 +50,12 @@ export function WithdrawFlow({
   const [amount, setAmount] = useState('')
 
   // Crypto state
-  const cryptoAssets = holdings.filter((a) => a.symbol !== 'NGN')
+  const cryptoAssets = holdings.filter((a) => a.symbol !== 'MSN')
   const [symbol, setSymbol] = useState<AssetSymbol>('USDT')
   const [address, setAddress] = useState('')
   const [cryptoAmount, setCryptoAmount] = useState('')
 
-  const ngnBalance = holdings.find((a) => a.symbol === 'NGN')?.balance ?? 0
+  const ngnBalance = holdings.find((a) => a.symbol === 'MSN')?.balance ?? 0
   const amt = Number(amount) || 0
   const fee = FEES.withdrawNgn
   const validAccount = /^\d{10}$/.test(accountNumber)
@@ -345,7 +345,7 @@ export function WithdrawFlow({
 
             {amt + fee > ngnBalance && amt > 0 && (
               <p className="text-xs text-destructive" role="alert">
-                Amount plus the {formatNgn(fee)} fee exceeds your naira balance.
+                Amount plus the {formatNgn(fee)} fee exceeds your MSN balance.
               </p>
             )}
 

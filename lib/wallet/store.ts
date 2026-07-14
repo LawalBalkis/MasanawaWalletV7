@@ -119,7 +119,7 @@ export interface FundingRecord {
   transactionRef: string
   /** The virtual account merchant reference the payment came into. */
   accountReference: string
-  /** Amount in NGN. */
+  /** Amount in MSN (1 MSN = ₦1). */
   amount: number
   payerName: string
   payerAccountNumber: string
@@ -127,7 +127,7 @@ export interface FundingRecord {
 }
 
 /**
- * Details needed to credit a user's NGN balance when a funding is newly
+ * Details needed to credit a user's MSN balance when a funding is newly
  * recorded. Passed alongside the FundingRecord so the idempotency log and the
  * ledger credit are written atomically — a funding can never be logged without
  * its matching ledger row (which would silently swallow a customer's money).
@@ -272,6 +272,72 @@ export interface ReferralStats {
 // The store contract
 // ---------------------------------------------------------------------------
 
+
+// P2P Escrow types
+export interface P2POfferRecord {
+  id: string
+  makerId: string
+  side: 'buy' | 'sell'
+  asset: string
+  priceMsn: number
+  totalAmount: number
+  remainingAmount: number
+  minOrderMsn: number
+  maxOrderMsn: number
+  terms: string | null
+  status: 'active' | 'paused' | 'closed'
+  createdAt: string
+}
+
+export interface P2POrderRecord {
+  id: string
+  offerId: string
+  makerId: string
+  takerId: string
+  asset: string
+  amount: number
+  priceMsn: number
+  totalMsn: number
+  feeMsn: number
+  status: 'open' | 'paid' | 'completed' | 'cancelled' | 'disputed'
+  escrowHoldId: string | null
+  expiresAt: string | null
+  completedAt?: string | null
+  createdAt: string
+}
+
+export interface EscrowHoldRecord {
+  id: string
+  orderId: string
+  ownerId: string
+  asset: string
+  amount: number
+  status: 'held' | 'released' | 'refunded'
+  createdAt: string
+  resolvedAt?: string | null
+}
+
+export interface P2PMessageRecord {
+  id: string
+  orderId: string
+  senderId: string
+  body: string
+  createdAt: string
+}
+
+export interface P2PDisputeRecord {
+  id: string
+  orderId: string
+  openedById: string
+  reason: string
+  evidence: unknown | null
+  status: 'open' | 'resolved_release' | 'resolved_refund'
+  resolvedById?: string | null
+  resolutionNote?: string | null
+  resolvedAt?: string | null
+  createdAt: string
+}
+
 export interface WalletStore {
   // Users
   createUser(user: NewUser): Promise<UserRecord>
@@ -354,6 +420,24 @@ export interface WalletStore {
   forceSignOutUser(userId: string): Promise<void>
   // Broadcast announcements (Phase B-7)
   broadcastNotification(input: { title: string; body: string }): Promise<number>
+
+  // P2P Escrow (Phase 3)
+  createP2POffer(input: Omit<P2POfferRecord, 'createdAt'>): Promise<void>
+  getP2POffer(id: string): Promise<P2POfferRecord | null>
+  listP2POffers(opts?: { asset?: string; side?: string; status?: string; makerId?: string; limit?: number; offset?: number }): Promise<P2POfferRecord[]>
+  updateP2POffer(id: string, patch: Partial<P2POfferRecord>): Promise<void>
+  createP2POrder(input: Omit<P2POrderRecord, 'createdAt'>): Promise<void>
+  getP2POrder(id: string): Promise<P2POrderRecord | null>
+  listP2POrders(opts?: { userId?: string; status?: string; limit?: number; offset?: number }): Promise<P2POrderRecord[]>
+  updateP2POrder(id: string, patch: Partial<P2POrderRecord>): Promise<void>
+  createEscrowHold(input: Omit<EscrowHoldRecord, 'createdAt' | 'resolvedAt'>): Promise<void>
+  updateEscrowHold(id: string, patch: Partial<EscrowHoldRecord>): Promise<void>
+  createP2PMessage(input: Omit<P2PMessageRecord, 'createdAt'>): Promise<void>
+  listP2PMessages(orderId: string): Promise<P2PMessageRecord[]>
+  createP2PDispute(input: Omit<P2PDisputeRecord, 'createdAt'>): Promise<void>
+  listP2PDisputes(opts?: { status?: string; limit?: number }): Promise<P2PDisputeRecord[]>
+  updateP2PDispute(id: string, patch: Partial<P2PDisputeRecord>): Promise<void>
+
   // Funding reconciliation (Phase B-6)
   reassignFunding(transactionRef: string, userId: string): Promise<void>
   refundFunding(transactionRef: string): Promise<void>
@@ -385,6 +469,11 @@ interface MemoryState {
   referrals: Map<string, ReferralRecord>
   beneficiaries: Map<string, Beneficiary & { userId: string }>
   notifications: Map<string, WalletNotification & { userId: string }>
+  p2pOffers: Map<string, P2POfferRecord>
+  p2pOrders: Map<string, P2POrderRecord>
+  escrowHolds: Map<string, EscrowHoldRecord>
+  p2pMessages: P2PMessageRecord[]
+  p2pDisputes: Map<string, P2PDisputeRecord>
   auditLog: AdminAuditEntry[]
   counter: number
 }
@@ -401,6 +490,11 @@ function seedState(): MemoryState {
     notifications: new Map(),
     auditLog: [],
     counter: 0,
+    p2pOffers: new Map(),
+    p2pOrders: new Map(),
+    escrowHolds: new Map(),
+    p2pMessages: [],
+    p2pDisputes: new Map(),
   }
 
   const passwordHash = hashSecret('password123')
@@ -458,13 +552,13 @@ function seedState(): MemoryState {
 
   // Opening ledger entries — demo balances derive from these rows.
   const openings: [string, AssetSymbol, number][] = [
-    ['adaeze', 'NGN', 486_250],
+    ['adaeze', 'MSN', 486_250],
     ['adaeze', 'USDT', 342.18],
     ['adaeze', 'USDC', 120.5],
     ['adaeze', 'BTC', 0.0042],
     ['adaeze', 'ETH', 0.085],
     ['adaeze', 'SOL', 3.4],
-    ...directory.map(([id]): [string, AssetSymbol, number] => [id, 'NGN', 250_000]),
+    ...directory.map(([id]): [string, AssetSymbol, number] => [id, 'MSN', 250_000]),
     ...directory.map(([id]): [string, AssetSymbol, number] => [id, 'USDT', 100]),
   ]
   for (const [userId, asset, amount] of openings) {
@@ -472,7 +566,7 @@ function seedState(): MemoryState {
     state.transactions.push({
       id: `tx_seed_${String(state.counter).padStart(3, '0')}`,
       userId,
-      type: asset === 'NGN' ? 'fund' : 'receive',
+      type: asset === 'MSN' ? 'fund' : 'receive',
       asset,
       amount,
       ngnValue: Math.round(amount * FALLBACK_NGN_RATES[asset] * 100) / 100,
@@ -493,7 +587,7 @@ function seedState(): MemoryState {
     id: 'nt_seed_01',
     userId: 'adaeze',
     title: 'Welcome to Masanawa',
-    body: 'Fund your NGN wallet, trade crypto, and send money to any @username — all from your dashboard.',
+    body: 'Fund your MSN wallet, trade crypto, and send money to any @username — all from your dashboard.',
     date: seededAt,
     read: false,
   })
@@ -694,7 +788,7 @@ class InMemoryWalletStore implements WalletStore {
       id: credit.txId,
       userId: credit.userId,
       type: 'fund',
-      asset: 'NGN',
+      asset: 'MSN',
       amount: record.amount,
       ngnValue: record.amount,
       counterparty: record.payerName,
@@ -800,7 +894,7 @@ class InMemoryWalletStore implements WalletStore {
       id: txId,
       userId,
       type: 'receive',
-      asset: 'NGN',
+      asset: 'MSN',
       amount,
       ngnValue: amount,
       counterparty: 'Masanawa Referrals',
@@ -1142,6 +1236,94 @@ class InMemoryWalletStore implements WalletStore {
 
   async refundFunding(_transactionRef: string) {
     // In-memory store: no-op
+  }
+
+  // P2P Escrow (Phase 3)
+  async createP2POffer(input: Omit<P2POfferRecord, 'createdAt'>) {
+    const s = getState()
+    s.p2pOffers.set(input.id, { ...input, createdAt: new Date().toISOString() })
+  }
+
+  async getP2POffer(id: string) {
+    return getState().p2pOffers.get(id) ?? null
+  }
+
+  async listP2POffers(opts?: { asset?: string; side?: string; status?: string; makerId?: string; limit?: number; offset?: number }) {
+    let offers = [...getState().p2pOffers.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    if (opts?.asset) offers = offers.filter((o) => o.asset === opts.asset)
+    if (opts?.side) offers = offers.filter((o) => o.side === opts.side)
+    if (opts?.status) offers = offers.filter((o) => o.status === opts.status)
+    if (opts?.makerId) offers = offers.filter((o) => o.makerId === opts.makerId)
+    const offset = opts?.offset ?? 0
+    const limit = opts?.limit ?? offers.length
+    return offers.slice(offset, offset + limit)
+  }
+
+  async updateP2POffer(id: string, patch: Partial<P2POfferRecord>) {
+    const s = getState()
+    const existing = s.p2pOffers.get(id)
+    if (existing) s.p2pOffers.set(id, { ...existing, ...patch })
+  }
+
+  async createP2POrder(input: Omit<P2POrderRecord, 'createdAt'>) {
+    const s = getState()
+    s.p2pOrders.set(input.id, { ...input, createdAt: new Date().toISOString() })
+  }
+
+  async getP2POrder(id: string) {
+    return getState().p2pOrders.get(id) ?? null
+  }
+
+  async listP2POrders(opts?: { userId?: string; status?: string; limit?: number; offset?: number }) {
+    let orders = [...getState().p2pOrders.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    if (opts?.userId) orders = orders.filter((o) => o.makerId === opts.userId || o.takerId === opts.userId)
+    if (opts?.status) orders = orders.filter((o) => o.status === opts.status)
+    const offset = opts?.offset ?? 0
+    const limit = opts?.limit ?? orders.length
+    return orders.slice(offset, offset + limit)
+  }
+
+  async updateP2POrder(id: string, patch: Partial<P2POrderRecord>) {
+    const s = getState()
+    const existing = s.p2pOrders.get(id)
+    if (existing) s.p2pOrders.set(id, { ...existing, ...patch })
+  }
+
+  async createEscrowHold(input: Omit<EscrowHoldRecord, 'createdAt' | 'resolvedAt'>) {
+    const s = getState()
+    s.escrowHolds.set(input.id, { ...input, createdAt: new Date().toISOString(), resolvedAt: null })
+  }
+
+  async updateEscrowHold(id: string, patch: Partial<EscrowHoldRecord>) {
+    const s = getState()
+    const existing = s.escrowHolds.get(id)
+    if (existing) s.escrowHolds.set(id, { ...existing, ...patch })
+  }
+
+  async createP2PMessage(input: Omit<P2PMessageRecord, 'createdAt'>) {
+    const s = getState()
+    s.p2pMessages.push({ ...input, createdAt: new Date().toISOString() })
+  }
+
+  async listP2PMessages(orderId: string) {
+    return getState().p2pMessages.filter((m) => m.orderId === orderId).sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+  }
+
+  async createP2PDispute(input: Omit<P2PDisputeRecord, 'createdAt'>) {
+    const s = getState()
+    s.p2pDisputes.set(input.id, { ...input, createdAt: new Date().toISOString() })
+  }
+
+  async listP2PDisputes(opts?: { status?: string; limit?: number }) {
+    let disputes = [...getState().p2pDisputes.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    if (opts?.status) disputes = disputes.filter((d) => d.status === opts.status)
+    return opts?.limit ? disputes.slice(0, opts.limit) : disputes
+  }
+
+  async updateP2PDispute(id: string, patch: Partial<P2PDisputeRecord>) {
+    const s = getState()
+    const existing = s.p2pDisputes.get(id)
+    if (existing) s.p2pDisputes.set(id, { ...existing, ...patch })
   }
 }
 

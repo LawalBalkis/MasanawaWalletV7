@@ -201,7 +201,7 @@ export async function manualBalanceAction(input: {
     id: txId,
     userId: target.id,
     type: input.direction === 'credit' ? 'fund' : 'withdraw',
-    asset: 'NGN',
+    asset: 'MSN',
     amount: signedAmount,
     ngnValue: signedAmount,
     feeNgn: 0,

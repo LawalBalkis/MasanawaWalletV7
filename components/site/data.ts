@@ -39,7 +39,7 @@ export const SECURITY_POINTS = [
 ]
 
 export const ASSETS = [
-  { symbol: 'NGN', name: 'Nigerian Naira', tone: '₦' },
+  { symbol: 'MSN', name: 'Nigerian Naira', tone: '₦' },
   { symbol: 'USDT', name: 'Tether', tone: '₮' },
   { symbol: 'USDC', name: 'USD Coin', tone: '$' },
   { symbol: 'BTC', name: 'Bitcoin', tone: '₿' },

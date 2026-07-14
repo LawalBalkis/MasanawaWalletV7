@@ -10,7 +10,7 @@ import { UserActions, type AdminUserView } from '@/components/admin/user-actions
 import { requireAdmin } from '@/lib/auth/session'
 import { formatNgn } from '@/lib/wallet/assets'
 import { walletStore } from '@/lib/wallet/store'
-import { ArrowLeft, CheckCircle2, XCircle } from 'lucide-react'
+import { ArrowLeft, CircleCheck as CheckCircle2, Circle as XCircle } from 'lucide-react'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
@@ -39,13 +39,13 @@ export default async function AdminUserDetailPage({
     tier: user.tier,
     emailVerified: user.emailVerified,
     hasPin: Boolean(user.pinHash),
-    ngnBalance: balances.NGN,
+    ngnBalance: balances.MSN,
   }
 
   const facts: { label: string; value: React.ReactNode }[] = [
     { label: 'Email', value: user.email },
     { label: 'Phone', value: user.phone || '—' },
-    { label: 'NGN balance', value: <span className="font-mono">{formatNgn(balances.NGN)}</span> },
+    { label: 'NGN balance', value: <span className="font-mono">{formatNgn(balances.MSN)}</span> },
     {
       label: 'Email verified',
       value: user.emailVerified ? (

@@ -2,9 +2,13 @@
 // Client-safe wallet domain: asset metadata, transaction shapes, fees and
 // formatting helpers. No balances live here — balances are derived from the
 // ledger (lib/wallet/ledger.ts) via the WalletStore.
+//
+// MSN (Masanawa Token) is the closed-loop platform token: 1 MSN = ₦1 fixed.
+// NGN is no longer a *held* asset — it is the on-ramp/off-ramp and display
+// currency. Every ₦ figure in the UI is the fixed redemption equivalent of MSN.
 // ---------------------------------------------------------------------------
 
-export type AssetSymbol = 'NGN' | 'USDT' | 'USDC' | 'BTC' | 'ETH' | 'SOL'
+export type AssetSymbol = 'MSN' | 'USDT' | 'USDC' | 'BTC' | 'ETH' | 'SOL'
 
 export interface AssetMeta {
   symbol: AssetSymbol
@@ -17,11 +21,21 @@ export interface AssetMeta {
 export interface AssetHolding extends AssetMeta {
   /** Balance in the asset's own unit. */
   balance: number
-  /** NGN per 1 unit of the asset. */
+  /** NGN per 1 unit of the asset. For MSN this is always 1. */
   ngnRate: number
 }
 
-export type TxType = 'fund' | 'buy' | 'sell' | 'send' | 'receive' | 'withdraw'
+export type TxType =
+  | 'fund'
+  | 'buy'
+  | 'sell'
+  | 'send'
+  | 'receive'
+  | 'withdraw'
+  | 'escrow_lock'
+  | 'escrow_release'
+  | 'escrow_refund'
+  | 'convert'
 
 export interface WalletTx {
   id: string
@@ -55,11 +69,11 @@ export interface WalletNotification {
 }
 
 export const ASSETS: AssetMeta[] = [
-  { symbol: 'NGN', name: 'Nigerian Naira', glyph: '₦', decimals: 2 },
-  { symbol: 'USDT', name: 'Tether', glyph: '₮', decimals: 2 },
+  { symbol: 'MSN', name: 'Masanawa Token', glyph: '₦', decimals: 2 },
+  { symbol: 'USDT', name: 'Tether', glyph: 'T', decimals: 2 },
   { symbol: 'USDC', name: 'USD Coin', glyph: '$', decimals: 2 },
-  { symbol: 'BTC', name: 'Bitcoin', glyph: '₿', decimals: 8 },
-  { symbol: 'ETH', name: 'Ethereum', glyph: 'Ξ', decimals: 6 },
+  { symbol: 'BTC', name: 'Bitcoin', glyph: 'B', decimals: 8 },
+  { symbol: 'ETH', name: 'Ethereum', glyph: 'E', decimals: 6 },
   { symbol: 'SOL', name: 'Solana', glyph: 'S', decimals: 4 },
 ]
 
@@ -72,9 +86,10 @@ export function assetMeta(symbol: AssetSymbol): AssetMeta {
 /**
  * Static NGN rates used when the live market-data fetch is unavailable.
  * Live rates come from lib/wallet/prices.ts (server).
+ * MSN is always 1:1 with NGN.
  */
 export const FALLBACK_NGN_RATES: Record<AssetSymbol, number> = {
-  NGN: 1,
+  MSN: 1,
   USDT: 1585,
   USDC: 1582,
   BTC: 168_400_000,
@@ -88,7 +103,7 @@ export const FEES = {
   /** 1% trade fee, min ₦100 */
   tradeRate: 0.01,
   tradeMinNgn: 100,
-  /** Flat NGN bank withdrawal fee */
+  /** Flat NGN bank withdrawal fee (= 50 MSN) */
   withdrawNgn: 50,
 }
 
@@ -110,7 +125,7 @@ export const NIGERIAN_BANKS = [
 
 /**
  * Demo crypto deposit addresses per asset.
- * ⚠️ SWAP POINT: real per-user deposit addresses require a custody/chain integration.
+ * SWAP POINT: real per-user deposit addresses require a custody/chain integration.
  */
 export const DEPOSIT_ADDRESSES: Partial<Record<AssetSymbol, { address: string; network: string }>> = {
   USDT: { address: 'TXk4mQ9pW2vE8rN3yLcA7bZjD5sF6hG1uK', network: 'Tron (TRC-20)' },
@@ -124,19 +139,26 @@ export const DEPOSIT_ADDRESSES: Partial<Record<AssetSymbol, { address: string; n
 // Formatting
 // ---------------------------------------------------------------------------
 
+/** Format a naira amount (the display equivalent of MSN). */
 export function formatNgn(value: number): string {
   return `₦${value.toLocaleString('en-NG', { maximumFractionDigits: 0 })}`
 }
 
+/** Format an MSN amount with the token label. */
+export function formatMsn(value: number): string {
+  return `${value.toLocaleString('en-NG', { maximumFractionDigits: 0 })} MSN`
+}
+
+/** Format any asset amount with its symbol. MSN renders as ₦ (naira display). */
 export function formatAsset(amount: number, asset: Pick<AssetMeta, 'symbol' | 'decimals'>): string {
   const abs = Math.abs(amount)
   const str = abs.toLocaleString('en-NG', { maximumFractionDigits: asset.decimals })
-  return asset.symbol === 'NGN' ? `₦${str}` : `${str} ${asset.symbol}`
+  return asset.symbol === 'MSN' ? `₦${str}` : `${str} ${asset.symbol}`
 }
 
 // ---------------------------------------------------------------------------
 // Price history (deterministic pseudo-random walk anchored at today's rate).
-// ⚠️ SWAP POINT: replace with a real OHLC market-data feed when available.
+// SWAP POINT: replace with a real OHLC market-data feed when available.
 // ---------------------------------------------------------------------------
 
 export type ChartRange = '1W' | '1M' | '1Y'
@@ -148,7 +170,7 @@ export function priceHistory(
 ): { date: string; price: number }[] {
   const points = range === '1W' ? 7 : range === '1M' ? 30 : 52
   const stepDays = range === '1Y' ? 7 : 1
-  const volatility = symbol === 'NGN' ? 0 : symbol === 'USDT' || symbol === 'USDC' ? 0.004 : 0.035
+  const volatility = symbol === 'MSN' ? 0 : symbol === 'USDT' || symbol === 'USDC' ? 0.004 : 0.035
   const seedBase = symbol.split('').reduce((s, c) => s + c.charCodeAt(0), 0)
   const now = Date.now()
   const out: { date: string; price: number }[] = []

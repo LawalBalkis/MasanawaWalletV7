@@ -1,4 +1,4 @@
-import { formatNgn } from '@/lib/wallet/assets'
+import { formatMsn, formatNgn } from '@/lib/wallet/assets'
 import { ArrowDownToLine, ArrowLeftRight, Banknote, Send } from 'lucide-react'
 import Link from 'next/link'
 
@@ -9,7 +9,7 @@ const QUICK_ACTIONS = [
   { href: '/dashboard/withdraw', label: 'Withdraw', icon: ArrowDownToLine },
 ]
 
-export function BalanceOverview({ total, username }: { total: number; username: string }) {
+export function BalanceOverview({ total, username, msnBalance }: { total: number; username: string; msnBalance?: number }) {
   return (
     <section aria-labelledby="balance-heading">
       <div className="rounded-2xl border border-border bg-card p-6 sm:p-8">
@@ -21,8 +21,13 @@ export function BalanceOverview({ total, username }: { total: number; username: 
             <p className="mt-2 font-mono text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
               {formatNgn(total)}
             </p>
+            {msnBalance != null && (
+              <p className="mt-1 text-sm text-muted-foreground">
+                {formatMsn(msnBalance)} · Masanawa Token
+              </p>
+            )}
             <p className="mt-2 text-sm text-muted-foreground">
-              Across naira and crypto · <span className="font-mono text-primary">@{username}</span>
+              Across MSN and crypto · <span className="font-mono text-primary">@{username}</span>
             </p>
           </div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">

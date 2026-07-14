@@ -22,18 +22,18 @@ type Step = 'form' | 'review' | 'done'
 
 export function TradeFlow({ holdings }: { holdings: AssetHolding[] }) {
   const router = useRouter()
-  const cryptoAssets = holdings.filter((a) => a.symbol !== 'NGN')
-  const ngnBalance = holdings.find((a) => a.symbol === 'NGN')?.balance ?? 0
+  const cryptoAssets = holdings.filter((a) => a.symbol !== 'MSN')
+  const ngnBalance = holdings.find((a) => a.symbol === 'MSN')?.balance ?? 0
 
   const [step, setStep] = useState<Step>('form')
   const [pinOpen, setPinOpen] = useState(false)
   const [mode, setMode] = useState<Mode>('buy')
   const [symbol, setSymbol] = useState<AssetSymbol>('USDT')
-  const [ngnAmount, setNgnAmount] = useState('')
+  const [msnAmount, setNgnAmount] = useState('')
   const { toast } = useToast()
 
   const asset = cryptoAssets.find((a) => a.symbol === symbol) ?? cryptoAssets[0]
-  const ngn = Number(ngnAmount) || 0
+  const ngn = Number(msnAmount) || 0
   const fee = ngn > 0 ? tradeFeeNgn(ngn) : 0
   // Buy: fee added on top in NGN. Sell: fee deducted from NGN proceeds.
   const assetAmount = ngn > 0 ? ngn / asset.ngnRate : 0
@@ -92,7 +92,7 @@ export function TradeFlow({ holdings }: { holdings: AssetHolding[] }) {
           open={pinOpen}
           description={`Enter your 4-digit PIN to ${mode} ${formatAsset(assetAmount, asset)}.`}
           onConfirm={async (pin) => {
-            const result = await tradeAction({ pin, mode, asset: symbol, ngnAmount: ngn })
+            const result = await tradeAction({ pin, mode, asset: symbol, msnAmount: ngn })
             if (result.ok) {
               setPinOpen(false)
               setStep('done')
@@ -179,7 +179,7 @@ export function TradeFlow({ holdings }: { holdings: AssetHolding[] }) {
             inputMode="decimal"
             min={1000}
             placeholder="10,000"
-            value={ngnAmount}
+            value={msnAmount}
             onChange={(e) => setNgnAmount(e.target.value)}
             className="h-10 rounded-lg border border-input bg-background px-3 font-mono text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
           />
@@ -211,7 +211,7 @@ export function TradeFlow({ holdings }: { holdings: AssetHolding[] }) {
         {insufficient && ngn > 0 && (
           <p className="text-xs text-destructive" role="alert">
             {mode === 'buy'
-              ? `Total cost ${formatNgn(ngn + fee)} exceeds your naira balance.`
+              ? `Total cost ${formatNgn(ngn + fee)} exceeds your MSN balance.`
               : `You'd need ${formatAsset(assetAmount, asset)} but hold ${formatAsset(asset.balance, asset)}.`}
           </p>
         )}

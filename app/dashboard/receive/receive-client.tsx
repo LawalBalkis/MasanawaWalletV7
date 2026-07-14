@@ -10,7 +10,7 @@ import { QRCodeSVG } from 'qrcode.react'
 import { Copy, TriangleAlert } from 'lucide-react'
 import { useState } from 'react'
 
-const CRYPTO_ASSETS = ASSETS.filter((a) => a.symbol !== 'NGN')
+const CRYPTO_ASSETS = ASSETS.filter((a) => a.symbol !== 'MSN')
 
 type Tab = 'username' | 'crypto'
 

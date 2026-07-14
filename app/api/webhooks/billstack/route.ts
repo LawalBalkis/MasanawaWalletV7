@@ -91,7 +91,7 @@ export async function POST(request: Request) {
       `${payload.data.payer.first_name} ${payload.data.payer.last_name}`.trim() || 'Bank transfer'
     const amount = Number(tx.amount)
 
-    // 7. Credit the wallet atomically — the idempotency log and the NGN ledger
+    // 7. Credit the wallet atomically — the idempotency log and the MSN ledger
     //    row are written together. Deterministic tx id gives a second dedupe
     //    layer on top of the funding primary key.
     const credited = await walletStore.recordFunding(
@@ -106,19 +106,19 @@ export async function POST(request: Request) {
       {
         userId: user.id,
         txId: `fund_${tx.transaction_ref.replace(/[^a-zA-Z0-9]/g, '')}`,
-        note: `Bank deposit from ${payerName}`,
+        note: `Bank deposit — MSN minted from ${payerName}`,
       },
     )
 
     if (credited) {
       console.log(
-        `[billstack-webhook] Credited NGN ${amount} to ${user.username} (${reference}, tx ${transaction_ref})`,
+        `[billstack-webhook] Credited MSN ${amount} to ${user.username} (${reference}, tx ${transaction_ref})`,
       )
       if (user.notifyTransactions) {
         await walletStore.addNotification({
           userId: user.id,
           title: 'Wallet funded',
-          body: `Your NGN wallet was credited with ₦${amount.toLocaleString('en-NG')} from ${payerName}.`,
+          body: `Your wallet was credited with ${amount.toLocaleString('en-NG')}  MSN (₦${amount.toLocaleString('en-NG')}) from ${payerName}.`,
         })
       }
       // If this user was referred, their new cumulative funding may cross the
