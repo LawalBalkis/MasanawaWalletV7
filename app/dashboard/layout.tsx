@@ -27,7 +27,7 @@ export default async function DashboardLayout({
         username={user.username}
         name={user.name}
         unreadCount={unreadCount}
-        isAdmin={user.role === 'admin'}
+        isAdmin={user.role === 'admin' || user.role === 'superadmin'}
       >
         {children}
       </AppShell>
